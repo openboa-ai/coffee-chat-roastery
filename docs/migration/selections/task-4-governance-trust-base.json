@@ -1,0 +1,984 @@
+{
+  "schema": "coffee-chat/migration-selection-projection",
+  "target_owner": "openboa-ai/coffee-chat-roastery",
+  "task": "task-4",
+  "objective": "governance-trust-base",
+  "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
+  "selected_rows": [
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/CODEOWNERS",
+      "source_blob_oid": "901639e321ee1999e6bce78ce077efa352f72f26",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/CODEOWNERS",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/ci-policy.mjs",
+      "source_blob_oid": "8e84f21da36ff406ec21c5f7955911c758f5ea32",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/ci-policy.mjs",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/dependabot.yml",
+      "source_blob_oid": "d09256cf938a7da77bfd8a379a524816a5857f31",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/dependabot.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/merge-policy.d.mts",
+      "source_blob_oid": "06af1c2f956a2d547002169431c57f5cd9ad4515",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.d.mts",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/merge-policy.json",
+      "source_blob_oid": "ff80fe7ff2edbf87c532f44b1bb2d6e27eacbc75",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.json",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/merge-policy.mjs",
+      "source_blob_oid": "e4a31f865bb6d64f82609e4f690422c676687580",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.mjs",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/pull_request_template.md",
+      "source_blob_oid": "15d6aae38d1ea9fc84b7f46a7cedaddc6b4186c7",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/pull_request_template.md",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/workflows/auto-merge.yml",
+      "source_blob_oid": "f499361775ac78f92b15344534c7a725e3feeb39",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/auto-merge.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/workflows/ci.yml",
+      "source_blob_oid": "20088283152ff220b1471555aaec74eee644d60f",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/ci.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/workflows/codeql.yml",
+      "source_blob_oid": "9e57d56cfc954829a27cb14b64b84e26aabdec00",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/codeql.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/workflows/pages.yml",
+      "source_blob_oid": "5a494d5539c09c6e4c72490313d565fc86d05c4d",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/pages.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/workflows/release.yml",
+      "source_blob_oid": "c1bc35fec6f512ac99efc3ab5b91aa5c531a1c5e",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/release.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": ".github/workflows/security.yml",
+      "source_blob_oid": "cf5be7bebf8e45ddc3a03079681d3f4eb9dce6f8",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/security.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat",
+      "source_ref": "HEAD",
+      "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+      "source_path": "LICENSE",
+      "source_blob_oid": "ec3b5a0a2e3810cf769504f57aef6be0d9a3dd66",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:official-LICENSE",
+      "rationale_code": "OFFICIAL_LICENSE_REAUTHOR",
+      "oracle_code": "MIT_OPENBOA_SCOPE",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Replace legacy license bytes with a fresh official-repository software and contract license whose ownership scope is unambiguous.",
+      "replacement_observable_oracle": "LICENSE is standard MIT text with Copyright (c) 2026 Openboa AI and does not license personal Bean content."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/CODEOWNERS",
+      "source_blob_oid": "bbc20c1a6566333e975b6cd2439ab08dd2cd8d1f",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/CODEOWNERS",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/ci-policy.mjs",
+      "source_blob_oid": "8c56f76e656255aa4dc627214059d8486e15a2fc",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/ci-policy.mjs",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/dependabot.yml",
+      "source_blob_oid": "5a32bd8f4619bd99cdbab661e96d15bc23cc2c79",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/dependabot.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/merge-policy.d.mts",
+      "source_blob_oid": "06af1c2f956a2d547002169431c57f5cd9ad4515",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.d.mts",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/merge-policy.json",
+      "source_blob_oid": "631b0efdacc955670c7ca26210de1a02c1e0d726",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.json",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/merge-policy.mjs",
+      "source_blob_oid": "b4cea56d337dc6a01efecd86424052ece3b02f37",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.mjs",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/pull_request_template.md",
+      "source_blob_oid": "b90f5490ed558e0255962271d139235b68f7717b",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/pull_request_template.md",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/workflows/auto-merge.yml",
+      "source_blob_oid": "4d3671bcb6d916462255174d49cba663e8ba76b7",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/auto-merge.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/workflows/ci.yml",
+      "source_blob_oid": "34ae326f446665dbfcb764a26b6b86d50e01b230",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/ci.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/workflows/codeql.yml",
+      "source_blob_oid": "18fe5e20550d3b426991792c0c7b07303d47b5a9",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/codeql.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".github/workflows/security.yml",
+      "source_blob_oid": "06c440e6b663da72f774704cecce6e5075290d68",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/security.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/CODEOWNERS",
+      "source_blob_oid": "9b945943e2d93bf5a6dbaea067cce257c9224fe0",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/CODEOWNERS",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/ci-policy.mjs",
+      "source_blob_oid": "156442e9d9ff312d607b611f84845b1747bd0947",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/ci-policy.mjs",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/dependabot.yml",
+      "source_blob_oid": "5a32bd8f4619bd99cdbab661e96d15bc23cc2c79",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/dependabot.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/merge-policy.json",
+      "source_blob_oid": "21d3a2aa87f0137de9f4531a298959a1f20c84b6",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.json",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/merge-policy.mjs",
+      "source_blob_oid": "5ec2f29fa201c16097f335f20154a57f31835a16",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/merge-policy.mjs",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/pull_request_template.md",
+      "source_blob_oid": "b194adfa7c8dec6e502a26192ef8d4d4f8fcfc4a",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/pull_request_template.md",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/workflows/auto-merge.yml",
+      "source_blob_oid": "655729ae58ed878df0a65303efdb5c13a375ff78",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/auto-merge.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/workflows/ci.yml",
+      "source_blob_oid": "64b6e405afa0dcbe5881dd6b89f5e5f6551d3937",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/ci.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/workflows/codeql.yml",
+      "source_blob_oid": "5ca4ef07c8594d2291e79ec367f186c1cc814acf",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/codeql.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    },
+    {
+      "source_repository": "SonSangjoon/coffee-chat-bench",
+      "source_ref": "origin/main",
+      "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+      "source_path": ".github/workflows/security.yml",
+      "source_blob_oid": "e62223733a0260502110849648760d00f03cb52d",
+      "content_sha256": "-",
+      "action": "rewrite",
+      "target_owner": "workspace-root",
+      "target_path_or_surface": "policy-projection:.github/workflows/security.yml",
+      "rationale_code": "GOVERNANCE_REAUTHOR",
+      "oracle_code": "PROTECTED_BOOTSTRAP_CANARY",
+      "confidence": "high",
+      "migration_state": "planned",
+      "source_objective_or_failure_mode": "Preserve strong CI, protected-path review, least-privilege workflows, and fail-closed merge boundaries without copying legacy bytes.",
+      "replacement_observable_oracle": "Target governance and role-boundary suites pass; same-repository CI and later canaries verify the rewritten policy."
+    }
+  ],
+  "changed_surface_classification": [
+    {
+      "target_path_or_surface": ".editorconfig",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Normalize text editing without importing product-specific configuration.",
+      "observable_oracle": "Formatting is deterministic across the declared text surface."
+    },
+    {
+      "target_path_or_surface": ".gitattributes",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Normalize repository text and generated-file diff behavior.",
+      "observable_oracle": "Git attributes preserve LF text and mark the package lock as generated."
+    },
+    {
+      "target_path_or_surface": ".github/PULL_REQUEST_TEMPLATE.md",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/pull_request_template.md"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/pull_request_template.md"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/pull_request_template.md"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".github/ci-policy.mjs",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/ci-policy.mjs"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/merge-policy.d.mts"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/merge-policy.mjs"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/workflows/pages.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/workflows/release.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/ci-policy.mjs"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/merge-policy.mjs"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/ci-policy.mjs"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/merge-policy.d.mts"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/merge-policy.mjs"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".github/dependabot.yml",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/dependabot.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/dependabot.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/dependabot.yml"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".github/merge-policy.json",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/merge-policy.json"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/workflows/auto-merge.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/merge-policy.json"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/workflows/auto-merge.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/merge-policy.json"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/workflows/auto-merge.yml"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".github/migration-equality-receipt.schema.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Define the closed workspace equality-input transport schema.",
+      "observable_oracle": "The migration checker recomputes and matches every bound digest."
+    },
+    {
+      "target_path_or_surface": ".github/migration-receipt.schema.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Define repository-owned computed rewrite evidence for one target objective.",
+      "observable_oracle": "The migration checker rejects trusted booleans, missing oracle evidence, and unclassified changed surfaces."
+    },
+    {
+      "target_path_or_surface": ".github/migration-selection.schema.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Define the closed target projection schema without duplicating the workspace ledger authority.",
+      "observable_oracle": "The migration checker rejects missing, unknown, stale, or foreign projection fields."
+    },
+    {
+      "target_path_or_surface": ".github/workflows/codeql.yml",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/workflows/codeql.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/workflows/codeql.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/workflows/codeql.yml"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".github/workflows/policy.yml",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/workflows/security.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/workflows/security.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/workflows/security.yml"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".github/workflows/quality.yml",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/workflows/ci.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/workflows/ci.yml"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/workflows/ci.yml"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": ".gitignore",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Exclude dependencies, build output, coverage, local environment, and temporary evidence without hiding canonical repository files.",
+      "observable_oracle": "The policy suite rejects tracked dependency/generated directories and accepts the exact ignore boundary."
+    },
+    {
+      "target_path_or_surface": "AGENTS.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Declare the Roastery repository role and route contributors without importing Plugin, evaluator, benchmark, or personal-data ownership.",
+      "observable_oracle": "The role-boundary suite accepts only Roastery contract, validator, empty-seed, publication, governance, and documentation surfaces."
+    },
+    {
+      "target_path_or_surface": "CODEOWNERS",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": ".github/CODEOWNERS"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-bench",
+          "source_ref": "origin/main",
+          "source_commit": "93a5b9b66b7c8387e47452d9714669e71ec36daf",
+          "source_path": ".github/CODEOWNERS"
+        },
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".github/CODEOWNERS"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": "LICENSE",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat",
+          "source_ref": "HEAD",
+          "source_commit": "b0fbc9c4d8c6b38f6297fa36e359869c70e3c231",
+          "source_path": "LICENSE"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": "README.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Explain the official Bean-free Roastery contract and seed repository without claiming that contract or seed implementation already exists.",
+      "observable_oracle": "The role-boundary suite confirms the README states the current governance-only status and forbids personal/sample Beans."
+    },
+    {
+      "target_path_or_surface": "SECURITY.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Provide a role-specific private vulnerability-reporting route and public external-data threat boundary.",
+      "observable_oracle": "The role-boundary suite confirms security reporting, no secrets in issues, and Roastery-only scope."
+    },
+    {
+      "target_path_or_surface": "docs/migration/equality/task-4-governance-trust-base.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Carry the exact immutable workspace equality-input receipt bytes into the target.",
+      "observable_oracle": "The workspace and target copies are byte-identical and all digests recompute."
+    },
+    {
+      "target_path_or_surface": "docs/migration/receipts/task-4-governance-trust-base.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Record target-computed rewrite and changed-surface evidence for this governance objective.",
+      "observable_oracle": "Target CI recomputes all evidence and rejects a stale or self-asserted success."
+    },
+    {
+      "target_path_or_surface": "docs/migration/selections/task-4-governance-trust-base.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Transport only the selected canonical ledger rows and complete changed-surface classifications into the protected target.",
+      "observable_oracle": "Repeated workspace generation produces exact byte equality and the target checker validates the projection."
+    },
+    {
+      "target_path_or_surface": "package-lock.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Pin the minimal governance verification toolchain reproducibly.",
+      "observable_oracle": "npm ci reproduces dependencies and leaves no tracked dependency directory."
+    },
+    {
+      "target_path_or_surface": "package.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Expose only deterministic governance verification commands for the Roastery trust base.",
+      "observable_oracle": "npm ci, format:check, typecheck, test, and ci:policy all pass without network or provider secrets after installation."
+    },
+    {
+      "target_path_or_surface": "prettier.config.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Define one minimal deterministic formatting policy for governance bytes.",
+      "observable_oracle": "npm run format:check passes on the complete branch."
+    },
+    {
+      "target_path_or_surface": "scripts/check-migration-receipt.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Compute migration projection, equality, rewrite-oracle, and exhaustive changed-surface evidence rather than trusting declarations.",
+      "observable_oracle": "The governance suite proves fail-closed behavior for unknown, missing, mismatched, and unavailable evidence."
+    },
+    {
+      "target_path_or_surface": "tests/governance-policy.test.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Verify workflow, permission, pinning, migration evidence, and secret-boundary failure modes at the public contract level.",
+      "observable_oracle": "Objective scenarios fail on an unsafe synthetic or repository state and pass on the complete trust base."
+    },
+    {
+      "target_path_or_surface": "tests/role-boundary.test.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Prevent the Roastery governance bootstrap from owning Plugin runtime, personal Beans, evaluator execution, or benchmark implementation.",
+      "observable_oracle": "The repository tree and declared role pass the allowlist and forbidden-surface scenarios."
+    },
+    {
+      "target_path_or_surface": "tsconfig.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Type-check governance JavaScript and tests without creating runtime output.",
+      "observable_oracle": "npm run typecheck succeeds with no emitted files."
+    }
+  ]
+}
