@@ -116,6 +116,13 @@ function validateWorkflow(name, document) {
         fail(`${name}:${jobId}: checkout must disable persisted credentials`);
       }
       if (
+        step.uses?.startsWith("actions/checkout@") &&
+        ["policy.yml", "quality.yml"].includes(name) &&
+        step.with?.["fetch-depth"] !== 0
+      ) {
+        fail(`${name}:${jobId}: migration lanes must fetch complete history`);
+      }
+      if (
         step.uses?.startsWith("actions/setup-node@") &&
         String(step.with?.["node-version"]) !== "24"
       ) {

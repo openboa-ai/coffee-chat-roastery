@@ -72,15 +72,12 @@ function createRepositoryFixture(prefix) {
   const fixtureRoot = join(directory, "repository");
   execFileSync(
     "git",
-    [
-      "clone",
-      "--quiet",
-      "--no-hardlinks",
-      "--branch",
-      "main",
-      root,
-      fixtureRoot,
-    ],
+    ["clone", "--quiet", "--no-hardlinks", "--no-checkout", root, fixtureRoot],
+    { encoding: "utf8" },
+  );
+  execFileSync(
+    "git",
+    ["-C", fixtureRoot, "checkout", "--quiet", "--detach", emptyBase],
     { encoding: "utf8" },
   );
   for (const path of repositoryPaths()) {
@@ -180,6 +177,24 @@ test("required workflows expose safe, always-created pull request evidence", () 
   assert.equal(aggregate.if, "always()");
   assert.ok(Array.isArray(aggregate.needs) && aggregate.needs.length > 0);
   assert.match(JSON.stringify(aggregate.steps), /needs\./u);
+});
+
+test("migration lanes fetch the immutable empty-base history", () => {
+  for (const path of [
+    ".github/workflows/policy.yml",
+    ".github/workflows/quality.yml",
+  ]) {
+    const document = parse(readText(path));
+    const checkoutSteps = collectByKey(document.jobs, "uses")
+      .map((use, index) => ({ use, index }))
+      .filter(({ use }) => String(use).startsWith("actions/checkout@"));
+    assert.equal(checkoutSteps.length, 1, `${path}: checkout cardinality`);
+    const jobs = Object.values(document.jobs ?? {});
+    const checkout = jobs
+      .flatMap((job) => job.steps ?? [])
+      .find((step) => String(step.uses).startsWith("actions/checkout@"));
+    assert.equal(checkout?.with?.["fetch-depth"], 0, path);
+  }
 });
 
 test("merge policy and CODEOWNERS protect control-plane changes only", () => {
