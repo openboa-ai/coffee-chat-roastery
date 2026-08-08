@@ -15,13 +15,25 @@ const actionPins = new Set([
   "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
   "github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
   "github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+  "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+  "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+  "actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1",
 ]);
-const workflowNames = ["codeql.yml", "policy.yml", "quality.yml"];
+const workflowNames = [
+  "codeql.yml",
+  "github-coverage.yml",
+  "policy.yml",
+  "quality.yml",
+];
 const ordinaryPermissions = { contents: "read" };
 const codeqlPermissions = {
   actions: "read",
   contents: "read",
   "security-events": "write",
+};
+const coverageUploadPermissions = {
+  "code-quality": "write",
+  contents: "read",
 };
 
 function fail(message) {
@@ -75,7 +87,7 @@ function validateWorkflow(name, document) {
     fail(`${name}: events must be an object`);
   } else {
     const expectedEvents =
-      name === "codeql.yml"
+      name === "codeql.yml" || name === "github-coverage.yml"
         ? ["merge_group", "pull_request", "push"]
         : ["merge_group", "pull_request"];
     if (
@@ -90,7 +102,7 @@ function validateWorkflow(name, document) {
       }
     }
     if (
-      name === "codeql.yml" &&
+      (name === "codeql.yml" || name === "github-coverage.yml") &&
       JSON.stringify(events.push) !== JSON.stringify({ branches: ["main"] })
     ) {
       fail(`${name}: push analysis must target only main`);
@@ -115,7 +127,10 @@ function validateWorkflow(name, document) {
     const expected =
       name === "codeql.yml" && jobId === "analyze"
         ? codeqlPermissions
-        : ordinaryPermissions;
+        : name === "github-coverage.yml" &&
+            jobId === "upload-coverage-javascript"
+          ? coverageUploadPermissions
+          : ordinaryPermissions;
     if (!sameRecord(job.permissions, expected)) {
       fail(`${name}:${jobId}: permissions do not match the job class`);
     }
