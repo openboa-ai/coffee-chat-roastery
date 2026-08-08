@@ -4,8 +4,22 @@
   "required_events": ["merge_group", "pull_request"],
   "auto_merge": {
     "ordinary": true,
-    "protected": false
+    "protected_after_code_owner_approval": true
   },
+  "required_checks": [
+    {
+      "context": "Roastery required",
+      "integration_id": 15368
+    },
+    {
+      "context": "Roastery dependency review",
+      "integration_id": 15368
+    },
+    {
+      "context": "Roastery CodeQL JavaScript-TypeScript",
+      "integration_id": 15368
+    }
+  ],
   "protected_paths": [
     "/.github/**",
     "/AGENTS.md",
@@ -24,6 +38,7 @@
   ],
   "migration": {
     "base_commit": "8d57df18eed80dc1a8e0e85466f240d08af6fdde",
+    "target_commit": "3231235c271bf0aa4382a4eb576421fa0c149596",
     "checker": "scripts/check-migration-receipt.mjs",
     "oracle_commands": ["governance:oracle"],
     "reviewed_authority": {

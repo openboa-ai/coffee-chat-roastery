@@ -71,18 +71,29 @@ function gitPaths(args) {
 
 function validateWorkflow(name, document) {
   const events = document.on;
-  if (
-    !events ||
-    typeof events !== "object" ||
-    Array.isArray(events) ||
-    JSON.stringify(Object.keys(events).sort()) !==
-      JSON.stringify(["merge_group", "pull_request"])
-  ) {
-    fail(`${name}: events must be exactly pull_request and merge_group`);
-  }
-  for (const eventName of ["pull_request", "merge_group"]) {
-    if (events?.[eventName] !== null) {
-      fail(`${name}: ${eventName} must not contain path or branch filters`);
+  if (!events || typeof events !== "object" || Array.isArray(events)) {
+    fail(`${name}: events must be an object`);
+  } else {
+    const expectedEvents =
+      name === "codeql.yml"
+        ? ["merge_group", "pull_request", "push"]
+        : ["merge_group", "pull_request"];
+    if (
+      JSON.stringify(Object.keys(events).sort()) !==
+      JSON.stringify(expectedEvents)
+    ) {
+      fail(`${name}: required event set changed`);
+    }
+    for (const eventName of ["pull_request", "merge_group"]) {
+      if (events[eventName] !== null) {
+        fail(`${name}: ${eventName} must not contain path or branch filters`);
+      }
+    }
+    if (
+      name === "codeql.yml" &&
+      JSON.stringify(events.push) !== JSON.stringify({ branches: ["main"] })
+    ) {
+      fail(`${name}: push analysis must target only main`);
     }
   }
   if (!sameRecord(document.permissions, {})) {
@@ -242,7 +253,8 @@ if (mergePolicy) {
     mergePolicy.repository_role !== "roastery" ||
     mergePolicy.merge_method !== "squash" ||
     mergePolicy.auto_merge?.ordinary !== true ||
-    mergePolicy.auto_merge?.protected !== false
+    mergePolicy.auto_merge?.protected_after_code_owner_approval !== true ||
+    "protected" in mergePolicy.auto_merge
   ) {
     fail("merge policy does not describe the Roastery merge boundary");
   }
@@ -270,15 +282,25 @@ if (mergePolicy) {
 
   const checker = mergePolicy.migration?.checker;
   const base = mergePolicy.migration?.base_commit;
+  const target = mergePolicy.migration?.target_commit;
   if (
     checker !== "scripts/check-migration-receipt.mjs" ||
-    !/^[0-9a-f]{40}$/u.test(base ?? "")
+    !/^[0-9a-f]{40}$/u.test(base ?? "") ||
+    !/^[0-9a-f]{40}$/u.test(target ?? "")
   ) {
     fail("merge policy migration checker contract is invalid");
   } else {
     const result = spawnSync(
       process.execPath,
-      [resolve(root, checker), "--root", root, "--base", base],
+      [
+        resolve(root, checker),
+        "--root",
+        root,
+        "--base",
+        base,
+        "--target",
+        target,
+      ],
       { encoding: "utf8" },
     );
     if (result.status !== 0) {
