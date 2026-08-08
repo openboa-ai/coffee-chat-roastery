@@ -36,6 +36,7 @@ function parseArguments(argv) {
   const allowed = new Set([
     "--root",
     "--base",
+    "--target",
     "--projection",
     "--equality",
     "--receipt",
@@ -57,6 +58,7 @@ function parseArguments(argv) {
   return {
     root,
     base: values.get("--base"),
+    target: values.get("--target"),
     projectionPath: resolve(
       root,
       values.get("--projection") ?? defaultPaths.projection,
@@ -117,7 +119,18 @@ function gitZeroSeparated(root, args) {
     .filter(Boolean);
 }
 
-function changedSurfaces(root, base) {
+function changedSurfaces(root, base, target) {
+  if (target) {
+    return gitZeroSeparated(root, [
+      "diff",
+      "--name-only",
+      "--diff-filter=ACMRD",
+      "-z",
+      base,
+      target,
+      "--",
+    ]).sort();
+  }
   const paths = new Set([
     ...gitZeroSeparated(root, [
       "diff",
@@ -479,7 +492,7 @@ async function main() {
     fail("one or more selected rows lack changed-surface evidence");
   }
 
-  const actualSurfaces = changedSurfaces(args.root, args.base);
+  const actualSurfaces = changedSurfaces(args.root, args.base, args.target);
   const expectedSurfaces = [...classifiedSurfaces].sort();
   if (new Set(expectedSurfaces).size !== expectedSurfaces.length) {
     fail("changed-surface classification contains a duplicate target");
@@ -503,6 +516,21 @@ async function main() {
   ]);
   if (resolvedBase !== args.base || receipt.value.base_commit !== args.base) {
     fail("empty base commit mismatch");
+  }
+  if (args.target) {
+    const resolvedTarget = gitText(args.root, [
+      "rev-parse",
+      `${args.target}^{commit}`,
+    ]);
+    if (resolvedTarget !== args.target) {
+      fail("trust-base target commit mismatch");
+    }
+    if (
+      gitText(args.root, ["show", "-s", "--format=%P", args.target]) !==
+      args.base
+    ) {
+      fail("trust-base target must have only the empty base as its parent");
+    }
   }
   if (gitText(args.root, ["show", "-s", "--format=%P", args.base]) !== "") {
     fail("bootstrap base is not a root commit");
@@ -559,6 +587,7 @@ async function main() {
       target_owner: projection.value.target_owner,
       task: projection.value.task,
       objective: projection.value.objective,
+      target_commit: args.target ?? null,
       selected_rows: rows.length,
       changed_surfaces: expectedSurfaces.length,
     }) + "\n",

@@ -20,6 +20,7 @@ import { parse } from "yaml";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const emptyBase = "8d57df18eed80dc1a8e0e85466f240d08af6fdde";
+const trustBaseCommit = "3231235c271bf0aa4382a4eb576421fa0c149596";
 const workflowPaths = [
   ".github/workflows/policy.yml",
   ".github/workflows/quality.yml",
@@ -105,6 +106,8 @@ function runMigrationChecker(checkerRoot, extraArguments = []) {
       checkerRoot,
       "--base",
       emptyBase,
+      "--target",
+      trustBaseCommit,
       ...extraArguments,
     ],
     { encoding: "utf8" },
@@ -140,11 +143,13 @@ test("required workflows expose safe, always-created pull request evidence", () 
     assert.equal(typeof document, "object", `${path} must parse as YAML`);
     assert.ok(document.on?.pull_request !== undefined, `${path}: pull_request`);
     assert.ok(document.on?.merge_group !== undefined, `${path}: merge_group`);
-    assert.equal(document.on?.pull_request_target, undefined, path);
-    assert.doesNotMatch(
-      bytes,
-      /\b(?:paths|paths-ignore|branches|branches-ignore):/u,
+    assert.equal(
+      document.on.pull_request,
+      null,
+      `${path}: pull_request filters`,
     );
+    assert.equal(document.on.merge_group, null, `${path}: merge_group filters`);
+    assert.equal(document.on?.pull_request_target, undefined, path);
     assert.doesNotMatch(bytes, /\bsecrets\./u);
     assert.equal(collectByKey(document, "continue-on-error").length, 0, path);
 
@@ -179,6 +184,26 @@ test("required workflows expose safe, always-created pull request evidence", () 
   assert.match(JSON.stringify(aggregate.steps), /needs\./u);
 });
 
+test("default-branch analysis and grouped dependency maintenance are explicit", () => {
+  const codeql = parse(readText(".github/workflows/codeql.yml"));
+  assert.deepEqual(codeql.on.push, { branches: ["main"] });
+
+  const dependabot = parse(readText(".github/dependabot.yml"));
+  assert.equal(dependabot.updates.length, 2);
+  for (const update of dependabot.updates) {
+    assert.deepEqual(update.groups, {
+      security: {
+        "applies-to": "security-updates",
+        patterns: ["*"],
+      },
+      versions: {
+        "applies-to": "version-updates",
+        patterns: ["*"],
+      },
+    });
+  }
+});
+
 test("migration lanes fetch the immutable empty-base history", () => {
   for (const path of [
     ".github/workflows/policy.yml",
@@ -202,8 +227,17 @@ test("merge policy and CODEOWNERS protect control-plane changes only", () => {
   assert.equal(policy.repository_role, "roastery");
   assert.equal(policy.merge_method, "squash");
   assert.equal(policy.auto_merge.ordinary, true);
-  assert.equal(policy.auto_merge.protected, false);
+  assert.equal(policy.auto_merge.protected_after_code_owner_approval, true);
+  assert.equal(policy.auto_merge.protected, undefined);
   assert.deepEqual(policy.required_events, ["merge_group", "pull_request"]);
+  assert.deepEqual(policy.required_checks, [
+    { context: "Roastery required", integration_id: 15368 },
+    { context: "Roastery dependency review", integration_id: 15368 },
+    {
+      context: "Roastery CodeQL JavaScript-TypeScript",
+      integration_id: 15368,
+    },
+  ]);
 
   const codeowners = readText("CODEOWNERS");
   assert.doesNotMatch(
@@ -222,7 +256,7 @@ test("merge policy and CODEOWNERS protect control-plane changes only", () => {
   }
 });
 
-test("migration evidence is recomputed and complete for the current diff", () => {
+test("migration evidence is recomputed from the reviewed trust-base tree", () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -231,14 +265,34 @@ test("migration evidence is recomputed and complete for the current diff", () =>
       root,
       "--base",
       emptyBase,
+      "--target",
+      trustBaseCommit,
     ],
     { encoding: "utf8" },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const evidence = JSON.parse(result.stdout);
   assert.equal(evidence.status, "passed");
+  assert.equal(evidence.target_commit, trustBaseCommit);
   assert.equal(evidence.selected_rows, 35);
   assert.equal(evidence.changed_surfaces, 28);
+});
+
+test("CI preserves the bootstrap receipt when later allowed surfaces are added", () => {
+  const fixture = createRepositoryFixture("roastery-post-bootstrap-");
+  try {
+    const laterPath = resolve(fixture.root, "docs/control-plane-canary.md");
+    mkdirSync(dirname(laterPath), { recursive: true });
+    writeFileSync(laterPath, "# Control-plane canary\n");
+    const result = spawnSync(
+      process.execPath,
+      [resolve(fixture.root, ".github/ci-policy.mjs")],
+      { cwd: fixture.root, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
 });
 
 test("migration checker fails closed on receipt tampering", () => {
@@ -285,6 +339,8 @@ test("migration checker fails closed on receipt tampering", () => {
           root,
           "--base",
           emptyBase,
+          "--target",
+          trustBaseCommit,
           "--receipt",
           receiptPath,
         ],
