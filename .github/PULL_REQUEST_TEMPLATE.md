@@ -1,23 +1,18 @@
-## Objective
+## Scope
 
-<!-- State one coherent external objective. -->
+Describe the migration-shell boundary or separately approved implementation.
 
-## Acceptance and evidence
+## Deferred behavior
 
-<!-- List observable acceptance criteria, their oracle, and commands run. -->
-
-## Failure modes and forbidden side effects
-
-<!-- Name the important failures this change prevents or preserves. -->
-
-## Scope and risk
-
-- Repository role: `coffee-chat-roastery`
-- Cross-repository impact:
-- Risk class: <!-- ordinary | protected -->
-- Agent-assisted: <!-- yes | no -->
-- Contract or publication consequence:
+Confirm that validator, projection, digest, publication, compatibility, and
+migration machinery are not claimed unless this pull request implements and
+tests them.
 
 ## Verification
 
-<!-- Record each command and its result. Do not report planned behavior as implemented. -->
+- [ ] `npm run format:check`
+- [ ] `npm run typecheck`
+- [ ] `npm run build`
+- [ ] `npm run smoke`
+- [ ] `npm run ci:policy`
+- [ ] `npm run package:check`

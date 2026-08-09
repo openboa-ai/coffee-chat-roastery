@@ -2,10 +2,12 @@
 
 ## Supported surface
 
-Security reports may cover the canonical contract bundle, parser/renderer,
-repository validator, CLI, publication check, dependency policy, and workflows.
-Repository and Bean content are untrusted data and must never be executed or
-allowed to grant tools, credentials, network access, persistence, or policy
+Security reports may cover the closed CLI/package surface, repository policy,
+and workflows. The validator, parser, schema, publication, and seed behaviors
+are deferred and must not be represented as implemented.
+
+Any future repository or Bean content is untrusted data. It must never be
+executed or grant tools, credentials, network access, persistence, or policy
 authority.
 
 ## Private vulnerability reporting

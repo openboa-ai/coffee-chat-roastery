@@ -15,8 +15,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./contract/contract.json": "./contract/contract.json"
+    }
   },
   "bin": {
     "roastery": "dist/cli.js"
@@ -26,27 +25,17 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check:publication": "node scripts/check-publication.mjs",
     "ci:policy": "node .github/ci-policy.mjs",
     "format:check": "prettier --check .",
     "package:check": "node scripts/check-package.mjs",
-    "test": "npm run test:governance && npm run test:roastery",
-    "test:coverage": "npm run test:governance && vitest run tests/*.test.ts --coverage.enabled=true --coverage.provider=v8 --coverage.reporter=text --coverage.reporter=cobertura --coverage.include='src/**/*.ts'",
-    "test:governance": "node --test tests/*.test.mjs",
-    "test:publication": "vitest run tests/publication-acceptance.test.ts tests/content-license-contract.test.ts",
-    "test:roastery": "vitest run tests/contract.test.ts tests/security-boundary.test.ts tests/validator.test.ts",
+    "smoke": "node --test tests/*.test.mjs",
+    "test": "npm run smoke",
     "typecheck": "tsc --noEmit",
     "prepack": "npm run build"
   },
-  "dependencies": {
-    "ajv": "8.20.0"
-  },
   "devDependencies": {
     "@types/node": "24.13.3",
-    "@vitest/coverage-v8": "4.1.10",
     "prettier": "3.9.6",
-    "typescript": "7.0.2",
-    "vitest": "4.1.10",
-    "yaml": "2.9.0"
+    "typescript": "7.0.2"
   }
 }

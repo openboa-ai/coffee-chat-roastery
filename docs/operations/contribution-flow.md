@@ -1,11 +1,21 @@
-# Repository contribution flow
+# Contribution flow
 
-Develop each coherent change on a branch and propose it through a pull request.
-`main` accepts GitHub-native squash merges only after the exact head passes the
-required deterministic aggregate, dependency review, and native CodeQL rule.
+## Current migration shell
 
-Only organization `OWNER` or `MEMBER` pull-request authors are eligible.
-CODEOWNERS routes sensitive changes to the owning team but does not create a
-human approval requirement. The merge queue revalidates the same required
-workflow graph with explicit failure states. Repository workflows provide
-evidence and never merge pull requests themselves.
+Changes preserve a Bean-free official repository, the MIT software boundary, the
+future fixed CC BY 4.0 owner-content boundary, and the closed package surface.
+The three public commands are intentionally unimplemented and make no writes.
+
+## Deferred implementation
+
+Do not add a schema, seed, validator, projection, digest, publication check,
+compatibility layer, migration receipt, refresh process, or enforcement claim
+without a new approved implementation scope. A future `project-index` write must
+be designed and tested as an explicit write operation.
+
+## Pull requests
+
+Use GitHub-native squash merge only. Eligible pull-request authors are `OWNER`
+and `MEMBER`; the repository requires zero approvals and no custom auto-merge
+controller. Required checks are the lean deterministic quality lane, dependency
+review, and CodeQL.

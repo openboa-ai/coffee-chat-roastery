@@ -1,9 +1,9 @@
 # Coffee Chat Roastery
 
-Coffee Chat Roastery is the public, forkable home of the canonical Roastery
-contract, validator, and publication safeguards. It defines how one owner keeps
-a public set of reviewed Beans without giving repository content executable or
-policy authority.
+Coffee Chat Roastery is the public, forkable, Bean-free authority for the future
+canonical Roastery contract. This migration shell establishes the repository
+boundary and package shape; it does not implement a validator, index projection,
+publication enforcement, seed, or compatibility layer.
 
 The official repository is intentionally Bean-free and contains no personal
 attribution. A personal fork has one canonical data root:
@@ -16,43 +16,25 @@ roastery/
 └── beans/
 ```
 
-The current contract repository does not yet include that downstream seed
-manifest. When the Bean-free seed is added, `roastery/roastery.json` will be the
-only contract pin and will point to an already-published immutable contract
-commit and bundle digest.
+When the seed is implemented, `roastery/roastery.json` will be the sole
+downstream contract pin. It is not present in this official repository today.
 
 ## Commands
 
 ```sh
-roastery validate --root <path> --format json
-roastery validate --root <path> --contract-commit <40-hex> --contract-digest <sha256> --format json
-roastery project-index --root <path> [--check]
-roastery contract-digest --root <repository> --format json
+roastery validate
+roastery project-index
+roastery contract-digest
 ```
 
-`validate` checks the selected repository against the independently trusted
-bundle and source tuple carried by the installed Roastery package. A selected
-fork cannot replace that authority with its own schema or validator. Structural
-schemas are applied to the parsed manifest, index, Bean frontmatter, and content
-declaration before semantic validation. The Plugin passes its pinned official
-commit and bundle digest to an installed package. A source checkout may omit
-those flags and use its own Git HEAD; validation fails closed when neither form
-of immutable source authority is available.
+All three commands are discoverable but return `{"status":"not_implemented"}`
+with a non-zero exit code. They make no writes. The future `project-index`
+capability is the only contemplated write surface, and needs a separately
+approved implementation.
 
-`project-index` is the only command that writes, and only when `--check` is
-omitted. `contract-digest` computes the deterministic SHA-256 digest of the
-single inventory declared by [`contract/contract.json`](contract/contract.json).
-That inventory covers the contracts, schemas, template, public API, CLI, parser,
-renderer, projections, validators, shared types, and digest framing that the
-Plugin vendors. The package executes compiled `dist/**` JavaScript rather than
-raw TypeScript under `node_modules`. `npm run package:check` proves the same
-runtime inventory is tracked and packaged, installs the real tarball with only
-production dependencies, runs the npm bin, imports the public API, and checks
-relative runtime-import closure.
-
-The fixed [Init Contract](contract/init.md) defines the exact declaration
-Preview, explicit acceptance, stale-Preview boundary, and zero-write outcomes.
-Plugin UI and write orchestration remain owned by `openboa-ai/coffee-chat`.
+The installed package exports exactly `validate`, `projectIndex`, and
+`contractDigest`; each currently returns the same explicit deferred status.
+`npm run package:check` packs, installs, and runs this closed surface offline.
 
 ## Rights boundary
 
@@ -65,4 +47,5 @@ with owner-provided attribution. Origin URLs and the resources they identify
 remain outside that Bean-content license. The official Bean-free repository does
 not install `roastery/CONTENT_LICENSE.md`.
 
-Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+See [SECURITY.md](SECURITY.md) and [the quality map](docs/quality-map.md) for
+the current shell boundary and deferred implementation work.

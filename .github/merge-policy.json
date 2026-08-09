@@ -8,6 +8,7 @@
     "required_approvals": 0,
     "code_owner_reviews_required": false
   },
+  "required_approvals": 0,
   "required_checks": [
     {
       "context": "Roastery required",
@@ -29,12 +30,7 @@
     "/tsconfig.json",
     "/scripts/**",
     "/contract/**",
-    "/roastery/CONTENT_LICENSE.md",
-    "/src/cli.ts",
-    "/src/contract/**",
-    "/src/index.ts",
-    "/src/projection/**",
-    "/src/validation/**",
+    "/src/**",
     "/tests/**"
   ]
 }

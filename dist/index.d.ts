@@ -1,12 +1,8 @@
-export { contractBundlePaths, loadContractManifest, parseContractManifest, type ContractManifest, } from "./contract/manifest.ts";
-export * from "./contract/types.ts";
-export { digestContractBundle } from "./contract/digest.ts";
-export { normalizeOwnerAttribution, renderContentLicense, } from "./projection/content-license.ts";
-export { projectIndex, projectIndexBytes } from "./projection/index.ts";
-export { validateBeanFile } from "./validation/bean.ts";
-export { parseContentLicense } from "./validation/content-license.ts";
-export { validateContractBundle } from "./validation/contract-bundle.ts";
-export { validateCommittedIndex } from "./validation/index.ts";
-export { OWNER_PUBLICATION_ATTESTATION, validateBeanPublication, } from "./validation/publication.ts";
-export { validateRepository } from "./validation/repository.ts";
-export { parseRepositoryIdentity, validateRoasteryManifest, } from "./validation/roastery.ts";
+export type RoasteryCommand = "validate" | "project-index" | "contract-digest";
+export interface NotImplementedResult {
+    command: RoasteryCommand;
+    status: "not_implemented";
+}
+export declare function validate(): NotImplementedResult;
+export declare function projectIndex(): NotImplementedResult;
+export declare function contractDigest(): NotImplementedResult;

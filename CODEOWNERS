@@ -11,8 +11,5 @@
 /contract/** @openboa
 /roastery/CONTENT_LICENSE.md @openboa
 /src/cli.ts @openboa
-/src/contract/** @openboa
 /src/index.ts @openboa
-/src/projection/** @openboa
-/src/validation/** @openboa
 /tests/** @openboa
