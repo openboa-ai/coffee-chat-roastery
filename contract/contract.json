@@ -1,0 +1,34 @@
+{
+  "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
+  "digest": {
+    "algorithm": "sha256",
+    "file_count_bytes": 4,
+    "path_length_bytes": 4,
+    "content_length_bytes": 8,
+    "byte_order": "big-endian",
+    "path_base": "contract/",
+    "path_order": "utf8-bytewise"
+  },
+  "content_license": {
+    "scope": "roastery/beans/**",
+    "spdx_identifier": "CC-BY-4.0",
+    "official_license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution_normalization": "NFC",
+    "supported": true,
+    "attribution_required": true,
+    "change_indication_required": true,
+    "product_provenance_required": true
+  },
+  "files": {
+    "roastery_schema": "contract/schemas/roastery.schema.json",
+    "index_schema": "contract/schemas/index.schema.json",
+    "bean_frontmatter_schema": "contract/schemas/bean-frontmatter.schema.json",
+    "content_license_schema": "contract/schemas/content-license.schema.json",
+    "rights_semantics_schema": "contract/schemas/rights-semantics.schema.json",
+    "contract_refresh_evidence_schema": "contract/schemas/contract-refresh-evidence.schema.json",
+    "contract_refresh_receipt_schema": "contract/schemas/contract-refresh-receipt.schema.json",
+    "content_license_template": "contract/templates/content-license.md",
+    "publication_contract": "contract/publication.md",
+    "security_contract": "contract/security.md"
+  }
+}
