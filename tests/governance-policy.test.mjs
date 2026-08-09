@@ -137,6 +137,44 @@ function workflowEntries() {
   }));
 }
 
+function assertTrustedAuthorGate(step, label) {
+  assert.ok(step, `${label}: trusted-author gate must exist`);
+  assert.equal(step.name, "Verify trusted pull request author", label);
+  assert.equal(step.if, "github.event_name == 'pull_request'", label);
+  assert.deepEqual(
+    step.env,
+    {
+      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+      PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
+    },
+    label,
+  );
+
+  for (const scenario of [
+    { association: "OWNER", login: "someone", accepted: true },
+    { association: "MEMBER", login: "someone", accepted: true },
+    { association: "CONTRIBUTOR", login: "openboa", accepted: true },
+    { association: "NONE", login: "openboa", accepted: true },
+    { association: "CONTRIBUTOR", login: "someone", accepted: false },
+    { association: "NONE", login: "Openboa", accepted: false },
+  ]) {
+    const result = spawnSync("bash", ["-euo", "pipefail", "-c", step.run], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        AUTHOR_ASSOCIATION: scenario.association,
+        PR_AUTHOR_LOGIN: scenario.login,
+      },
+    });
+    assert.equal(
+      result.status === 0,
+      scenario.accepted,
+      `${label}: ${scenario.association}/${scenario.login}`,
+    );
+  }
+}
+
 test("required workflows expose safe, always-created pull request evidence", () => {
   const entries = workflowEntries();
   const aggregateJobs = [];
@@ -195,41 +233,143 @@ test("required workflows expose safe, always-created pull request evidence", () 
   assert.match(JSON.stringify(aggregate.steps), /needs\./u);
 });
 
-test("trusted-author gate accepts members or the exact official login", () => {
+test("author eligibility gates every candidate-executing quality lane", () => {
   const workflow = parse(readText(".github/workflows/quality.yml"));
-  const step = workflow.jobs.quality.steps.find(
-    (candidate) => candidate.name === "Verify trusted pull request author",
+  const eligibility = workflow.jobs.eligibility;
+
+  assert.ok(eligibility, "eligibility job must exist before candidate lanes");
+  assert.equal(
+    collectByKey(eligibility, "uses").length,
+    0,
+    "eligibility must not check out or invoke an Action from the candidate",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(collectByKey(eligibility, "run")),
+    /\b(?:git|node|npm|npx)\b/u,
+    "eligibility must not execute repository tooling",
   );
 
-  assert.equal(step.if, "github.event_name == 'pull_request'");
-  assert.deepEqual(step.env, {
-    AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-    PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
-  });
+  const mergeGroupStep = eligibility.steps.find(
+    (candidate) => candidate.name === "Admit merge queue candidate",
+  );
+  assert.equal(mergeGroupStep.if, "github.event_name == 'merge_group'");
+  const mergeGroupResult = spawnSync(
+    "bash",
+    ["-euo", "pipefail", "-c", mergeGroupStep.run],
+    { cwd: root, encoding: "utf8", env: process.env },
+  );
+  assert.equal(mergeGroupResult.status, 0, mergeGroupResult.stderr);
 
-  for (const scenario of [
-    { association: "OWNER", login: "someone", accepted: true },
-    { association: "MEMBER", login: "someone", accepted: true },
-    { association: "CONTRIBUTOR", login: "openboa", accepted: true },
-    { association: "NONE", login: "openboa", accepted: true },
-    { association: "CONTRIBUTOR", login: "someone", accepted: false },
-    { association: "NONE", login: "Openboa", accepted: false },
-  ]) {
-    const result = spawnSync("bash", ["-euo", "pipefail", "-c", step.run], {
+  const step = eligibility.steps.find(
+    (candidate) => candidate.name === "Verify trusted pull request author",
+  );
+  assertTrustedAuthorGate(step, "quality.yml:eligibility");
+
+  const candidateJobs = Object.entries(workflow.jobs).filter(
+    ([jobId, job]) =>
+      !["aggregate", "eligibility"].includes(jobId) &&
+      (collectByKey(job.steps, "uses").some((use) =>
+        String(use).startsWith("actions/checkout@"),
+      ) ||
+        collectByKey(job.steps, "run").some((run) =>
+          /\b(?:node|npm|npx)\b/u.test(String(run)),
+        )),
+  );
+  assert.deepEqual(
+    candidateJobs.map(([jobId]) => jobId),
+    ["quality", "publication", "contract-refresh"],
+  );
+  for (const [jobId, job] of candidateJobs) {
+    const needs = Array.isArray(job.needs) ? job.needs : [job.needs];
+    assert.ok(
+      needs.includes("eligibility"),
+      `${jobId} must wait for author eligibility`,
+    );
+    if (job.if !== undefined) {
+      assert.match(
+        String(job.if),
+        /needs\.eligibility\.result == 'success'/u,
+        `${jobId} must not bypass a failed eligibility dependency`,
+      );
+    }
+  }
+
+  const aggregate = workflow.jobs.aggregate;
+  assert.deepEqual(aggregate.needs, [
+    "eligibility",
+    "quality",
+    "publication",
+    "contract-refresh",
+  ]);
+  const interpreter = aggregate.steps.find(
+    (candidate) => candidate.name === "Interpret required lane state",
+  );
+  assert.deepEqual(interpreter.env, {
+    CONTRACT_REFRESH_RESULT: "${{ needs.contract-refresh.result }}",
+    ELIGIBILITY_RESULT: "${{ needs.eligibility.result }}",
+    PUBLICATION_RESULT: "${{ needs.publication.result }}",
+    QUALITY_RESULT: "${{ needs.quality.result }}",
+  });
+  const rejected = spawnSync(
+    "bash",
+    ["-euo", "pipefail", "-c", interpreter.run],
+    {
       cwd: root,
       encoding: "utf8",
       env: {
         ...process.env,
-        AUTHOR_ASSOCIATION: scenario.association,
-        PR_AUTHOR_LOGIN: scenario.login,
+        CONTRACT_REFRESH_RESULT: "skipped",
+        ELIGIBILITY_RESULT: "failure",
+        PUBLICATION_RESULT: "skipped",
+        QUALITY_RESULT: "skipped",
       },
-    });
+    },
+  );
+  assert.notEqual(rejected.status, 0, "ineligible authors must fail required");
+  assert.match(rejected.stderr, /eligibility=failed/u);
+});
+
+test("policy and coverage gate pull requests before candidate execution", () => {
+  for (const { path, jobId } of [
+    { path: ".github/workflows/policy.yml", jobId: "policy" },
+    { path: ".github/workflows/github-coverage.yml", jobId: "coverage" },
+  ]) {
+    const workflow = parse(readText(path));
+    const job = workflow.jobs[jobId];
+    const gate = job.steps[0];
+
+    assertTrustedAuthorGate(gate, `${path}:${jobId}`);
     assert.equal(
-      result.status === 0,
-      scenario.accepted,
-      `${scenario.association}/${scenario.login}`,
+      job.if,
+      undefined,
+      `${path}:${jobId} must continue on push or merge_group`,
     );
+    const firstCandidateExecution = job.steps.findIndex(
+      (step) =>
+        String(step.uses).startsWith("actions/checkout@") ||
+        /\b(?:node|npm|npx)\b/u.test(String(step.run)),
+    );
+    assert.ok(firstCandidateExecution > 0, `${path}:${jobId} gate ordering`);
   }
+
+  const policy = parse(readText(".github/workflows/policy.yml"));
+  assert.equal(
+    policy.jobs["dependency-review"].steps.some(
+      (step) => step.name === "Verify trusted pull request author",
+    ),
+    false,
+    "dependency review does not run repository scripts",
+  );
+
+  const codeql = parse(readText(".github/workflows/codeql.yml"));
+  assert.equal(
+    codeql.jobs.analyze.steps.some(
+      (step) => step.name === "Verify trusted pull request author",
+    ),
+    false,
+    "CodeQL no-build analysis does not run repository scripts",
+  );
+  assert.equal(collectByKey(codeql.jobs.analyze.steps, "run").length, 0);
 });
 
 test("default-branch analysis and grouped dependency maintenance are explicit", () => {
@@ -287,6 +427,7 @@ test("publication and contract-refresh lanes execute acceptance and preserve the
     "edited",
   ]);
   assert.deepEqual(aggregate.needs, [
+    "eligibility",
     "quality",
     "publication",
     "contract-refresh",

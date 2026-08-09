@@ -5,7 +5,7 @@
   "objective": "protected-roastery-contract",
   "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
   "generator_sha256": "110f1a2a00d8cd7095e79f6c090ffc833f62e3c39adf71790bf29b1e9d7338c7",
-  "objective_selection_sha256": "a5b0b6bc6547788799acbcd477cad6e5a8d7fe292f81800f5f4306d174b833e6",
-  "projection_sha256": "4e2179a95240af07eeb3f0c2917d1e08920957fa00642ca6f7d596a343812c87",
-  "changed_surface_classification_sha256": "834527ae63e61c441bf5c25d2744ebd64bd515f7a9a08c20f3da39ec71c3cd14"
+  "objective_selection_sha256": "aa0f5849e4077ab6eb4a70f4ee06f9567e511cac2b6942f2d035da643d6ba4ed",
+  "projection_sha256": "92550bc3c2d50c401ae00174eb486aa7548da4f648926d0fa609c73de0df0ee7",
+  "changed_surface_classification_sha256": "783c60ff6b518e560243b866f0d45a13033201fb090296b20dc04ffc8becc5bc"
 }
