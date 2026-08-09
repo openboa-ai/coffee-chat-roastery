@@ -272,6 +272,16 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
         },
       );
     }
+    for (const malformedEscape of ["%", "%zz", "%0", "%0g"]) {
+      writeFileSync(beanPath, bean.replace("source", malformedEscape));
+      assert.deepEqual(
+        validate({ root, mode: "initialized", expectedContract: contract }),
+        {
+          code: "invalid_origin",
+          status: "invalid",
+        },
+      );
+    }
     writeFileSync(
       beanPath,
       bean.replace(

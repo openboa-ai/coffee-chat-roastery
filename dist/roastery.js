@@ -8,6 +8,7 @@ const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const URL_FORBIDDEN_SYNTAX = /[\\\s\u0000-\u001f\u007f-\u009f]/u;
+const URI_MALFORMED_PERCENT_ESCAPE = /%(?![0-9A-Fa-f]{2})/u;
 const SPECIAL_USE_DNS_TLDS = new Set([
     "alt",
     "arpa",
@@ -125,7 +126,8 @@ function safeChild(root, path) {
     }
 }
 function publicOrigin(value) {
-    if (URL_FORBIDDEN_SYNTAX.test(value))
+    if (URL_FORBIDDEN_SYNTAX.test(value) ||
+        URI_MALFORMED_PERCENT_ESCAPE.test(value))
         return false;
     let url;
     try {
