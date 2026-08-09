@@ -32,6 +32,7 @@ export const OWNER_PUBLICATION_ATTESTATION =
 
 const COMMIT = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
+const CONTRACT_PIN_PATH = ".coffee-chat/contract-pin.json";
 const BEAN_PATH =
   /^roastery\/beans\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.md$/u;
 const GITHUB_REPOSITORY =
@@ -85,7 +86,6 @@ export interface ContractRefreshInput {
   reviews: ReviewRecord[];
   oldBundle: RefreshBundleInput;
   newBundle: RefreshBundleInput;
-  pinPath: string;
 }
 
 interface RefreshPin {
@@ -612,7 +612,7 @@ export async function evaluateContractRefreshCandidate(
   if (
     JSON.stringify(actualChangedPaths) !==
       JSON.stringify([...input.changedPaths].sort()) ||
-    JSON.stringify(actualChangedPaths) !== JSON.stringify([input.pinPath])
+    JSON.stringify(actualChangedPaths) !== JSON.stringify([CONTRACT_PIN_PATH])
   ) {
     return { status: "rejected", reason: "changed_paths_mismatch" };
   }
@@ -642,13 +642,13 @@ export async function evaluateContractRefreshCandidate(
     beforePin = parseRefreshPin(
       gitText(input.forkRoot, [
         "show",
-        `${input.beforeCommit}:${input.pinPath}`,
+        `${input.beforeCommit}:${CONTRACT_PIN_PATH}`,
       ]),
     );
     afterPin = parseRefreshPin(
       gitText(input.forkRoot, [
         "show",
-        `${input.candidateHead}:${input.pinPath}`,
+        `${input.candidateHead}:${CONTRACT_PIN_PATH}`,
       ]),
     );
   } catch {
