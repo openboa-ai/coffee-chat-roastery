@@ -98,7 +98,6 @@ function inputFrom(fixture: SyntheticRefreshFixture) {
     reviews: fixture.reviews,
     oldBundle: fixture.oldBundle,
     newBundle: fixture.newBundle,
-    pinPath: ".coffee-chat/contract-pin.json",
   };
 }
 
@@ -627,6 +626,90 @@ describe("protected contract refresh", () => {
       status: "rejected",
       reason,
     });
+  });
+
+  test("requires the canonical contract pin path even when a decoy pin is internally consistent", async () => {
+    const fixture = remember(createSyntheticContractRefreshFixture());
+    const canonicalPath = ".coffee-chat/contract-pin.json";
+    const decoyPath = ".coffee-chat/decoy-pin.json";
+    const newPin = execFileSync(
+      "git",
+      [
+        "-C",
+        fixture.forkRoot,
+        "show",
+        `${fixture.candidateHead}:${canonicalPath}`,
+      ],
+      { encoding: "utf8" },
+    );
+
+    execFileSync("git", [
+      "-C",
+      fixture.forkRoot,
+      "checkout",
+      "--quiet",
+      fixture.beforeCommit,
+    ]);
+    writeFileSync(
+      resolve(fixture.forkRoot, decoyPath),
+      execFileSync("git", [
+        "-C",
+        fixture.forkRoot,
+        "show",
+        `${fixture.beforeCommit}:${canonicalPath}`,
+      ]),
+    );
+    execFileSync("git", ["-C", fixture.forkRoot, "add", decoyPath]);
+    execFileSync("git", [
+      "-C",
+      fixture.forkRoot,
+      "commit",
+      "--quiet",
+      "-m",
+      "seed decoy pin",
+    ]);
+    fixture.beforeCommit = execFileSync(
+      "git",
+      ["-C", fixture.forkRoot, "rev-parse", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
+
+    writeFileSync(resolve(fixture.forkRoot, decoyPath), newPin);
+    execFileSync("git", ["-C", fixture.forkRoot, "add", decoyPath]);
+    execFileSync("git", [
+      "-C",
+      fixture.forkRoot,
+      "commit",
+      "--quiet",
+      "-m",
+      "refresh decoy pin",
+    ]);
+    fixture.candidateHead = execFileSync(
+      "git",
+      ["-C", fixture.forkRoot, "rev-parse", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
+    fixture.changedPaths = [decoyPath];
+    fixture.reviews = [
+      {
+        reviewer: fixture.owner,
+        headSha: fixture.candidateHead,
+        state: "approved",
+      },
+    ];
+
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+    const decoyInput = {
+      ...inputFrom(fixture),
+      pinPath: decoyPath,
+    };
+    await expect(evaluateContractRefreshCandidate(decoyInput)).resolves.toEqual(
+      {
+        status: "rejected",
+        reason: "changed_paths_mismatch",
+      },
+    );
   });
 
   test.each([
