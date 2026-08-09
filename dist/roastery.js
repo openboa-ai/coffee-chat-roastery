@@ -124,7 +124,11 @@ function publicOrigin(value) {
         host.endsWith(".local")) {
         return false;
     }
-    return isIP(host) === 0;
+    return (isIP(host) === 0 &&
+        host.length <= 253 &&
+        host
+            .split(".")
+            .every((label) => /^(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,61}[a-z0-9])$/u.test(label)));
 }
 function parseBean(path) {
     const content = readFileSync(path);
