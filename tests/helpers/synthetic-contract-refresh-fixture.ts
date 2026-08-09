@@ -47,6 +47,7 @@ export interface SyntheticRefreshFixture {
 }
 
 export interface SyntheticRefreshOptions {
+  attribution?: string;
   declarationBytes?: string | Buffer;
   oldDimension?: SemanticDimension;
   aliasNewBundleToOld?: boolean;
@@ -246,12 +247,15 @@ function mutatePolicy(
   return mutated;
 }
 
-function projectionBytes(policy: ContentLicensePolicy): string {
+function projectionBytes(
+  policy: ContentLicensePolicy,
+  selectedAttribution = attribution,
+): string {
   return canonicalJson({
     scope: policy.scope,
     spdx_identifier: policy.spdx_identifier,
     official_license_url: policy.official_license_url,
-    normalized_attribution: attribution.normalize(
+    normalized_attribution: selectedAttribution.normalize(
       policy.attribution_normalization,
     ),
     status: policy.supported ? "supported" : "invalid",
@@ -303,8 +307,12 @@ function createBundle(
   };
 }
 
-function contractPin(bundle: SyntheticBundle, policy: ContentLicensePolicy) {
-  const rightsBytes = projectionBytes(policy);
+function contractPin(
+  bundle: SyntheticBundle,
+  policy: ContentLicensePolicy,
+  selectedAttribution = attribution,
+) {
+  const rightsBytes = projectionBytes(policy, selectedAttribution);
   return {
     repository: bundle.repository,
     commit: bundle.commit,
@@ -355,6 +363,7 @@ export function createSyntheticContractRefreshFixture(
     }),
   );
   const selectedDeclarationBytes = options.declarationBytes ?? declarationBytes;
+  const selectedAttribution = options.attribution ?? attribution;
   writeFileSync(
     join(forkRoot, "roastery", "CONTENT_LICENSE.md"),
     selectedDeclarationBytes,
@@ -365,13 +374,13 @@ export function createSyntheticContractRefreshFixture(
   );
   writeFileSync(
     join(forkRoot, ".coffee-chat", "contract-pin.json"),
-    canonicalJson(contractPin(oldBundle, oldPolicy)),
+    canonicalJson(contractPin(oldBundle, oldPolicy, selectedAttribution)),
   );
   initializeGit(forkRoot);
   const beforeCommit = commitAll(forkRoot, "pin contract A");
   writeFileSync(
     join(forkRoot, ".coffee-chat", "contract-pin.json"),
-    canonicalJson(contractPin(newBundle, newPolicy)),
+    canonicalJson(contractPin(newBundle, newPolicy, selectedAttribution)),
   );
   const candidateHead = commitAll(forkRoot, "refresh to contract B");
 

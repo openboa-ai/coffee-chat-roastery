@@ -551,6 +551,28 @@ describe("protected contract refresh", () => {
     },
   );
 
+  test("rejects a normalization-policy change hidden by ASCII attribution", async () => {
+    const asciiAttribution = "ASCII Fixture Owner";
+    const fixture = remember(
+      createSyntheticContractRefreshFixture("normalized_attribution", {
+        attribution: asciiAttribution,
+        declarationBytes: validDeclarationBytes.replaceAll(
+          "Café Fixture Owner",
+          asciiAttribution,
+        ),
+      }),
+    );
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    await expect(
+      evaluateContractRefreshCandidate(inputFrom(fixture)),
+    ).resolves.toEqual({
+      status: "rejected",
+      reason: "new_bundle_policy_invalid",
+    });
+  });
+
   test.each([
     {
       name: "commit mismatch",
