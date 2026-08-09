@@ -459,7 +459,7 @@ describe("filesystem trust boundary", () => {
 
   test("rejects a symlinked selected root in every validation and projection mode", async () => {
     const targetRoot = temporaryRepository();
-    const digest = await initializeEmptyRepository(targetRoot);
+    await initializeEmptyRepository(targetRoot);
     const linkParent = mkdtempSync(join(tmpdir(), "roastery-linked-root-"));
     temporaryRoots.push(linkParent);
     const linkedRoot = join(linkParent, "selected");
@@ -535,7 +535,7 @@ describe("filesystem trust boundary", () => {
 
   test("rejects a Bean symlink that escapes the repository root", async () => {
     const root = temporaryRepository();
-    const digest = await initializeEmptyRepository(root);
+    await initializeEmptyRepository(root);
     const outsideRoot = mkdtempSync(join(tmpdir(), "roastery-outside-bean-"));
     temporaryRoots.push(outsideRoot);
     const outside = join(outsideRoot, "outside-bean.md");
