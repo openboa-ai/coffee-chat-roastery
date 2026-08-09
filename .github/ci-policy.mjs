@@ -10,8 +10,8 @@ const pinnedActions = [
   "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
   "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-  "github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
-  "github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+  "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3",
+  "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3",
 ];
 
 function requireText(source, text, file) {
