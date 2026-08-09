@@ -238,12 +238,16 @@ if (
   trustedAuthorStep?.if !== "github.event_name == 'pull_request'" ||
   !sameRecord(trustedAuthorStep.env, {
     AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+    PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
   }) ||
   !String(trustedAuthorStep.run).includes("OWNER|MEMBER") ||
+  !String(trustedAuthorStep.run).includes(
+    "if [ \"$PR_AUTHOR_LOGIN\" = 'openboa' ]",
+  ) ||
   String(trustedAuthorStep.run).includes("COLLABORATOR") ||
   !String(trustedAuthorStep.run).includes("exit 1")
 ) {
-  fail("quality.yml must reject pull requests from non-members");
+  fail("quality.yml must admit only members or the exact official login");
 }
 const qualityRuns = qualitySteps
   .filter((step) => step.name !== "Verify trusted pull request author")
@@ -503,7 +507,9 @@ if (mergePolicy) {
     JSON.stringify(mergePolicy.auto_merge) !==
       JSON.stringify({ required_checks: true, verified_members_only: true }) ||
     JSON.stringify(mergePolicy.eligible_author_associations) !==
-      JSON.stringify(["OWNER", "MEMBER"])
+      JSON.stringify(["OWNER", "MEMBER"]) ||
+    JSON.stringify(mergePolicy.eligible_author_logins) !==
+      JSON.stringify(["openboa"])
   ) {
     fail("merge policy does not describe the Roastery merge boundary");
   }

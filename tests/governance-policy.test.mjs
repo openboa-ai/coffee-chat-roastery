@@ -195,6 +195,43 @@ test("required workflows expose safe, always-created pull request evidence", () 
   assert.match(JSON.stringify(aggregate.steps), /needs\./u);
 });
 
+test("trusted-author gate accepts members or the exact official login", () => {
+  const workflow = parse(readText(".github/workflows/quality.yml"));
+  const step = workflow.jobs.quality.steps.find(
+    (candidate) => candidate.name === "Verify trusted pull request author",
+  );
+
+  assert.equal(step.if, "github.event_name == 'pull_request'");
+  assert.deepEqual(step.env, {
+    AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+    PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
+  });
+
+  for (const scenario of [
+    { association: "OWNER", login: "someone", accepted: true },
+    { association: "MEMBER", login: "someone", accepted: true },
+    { association: "CONTRIBUTOR", login: "openboa", accepted: true },
+    { association: "NONE", login: "openboa", accepted: true },
+    { association: "CONTRIBUTOR", login: "someone", accepted: false },
+    { association: "NONE", login: "Openboa", accepted: false },
+  ]) {
+    const result = spawnSync("bash", ["-euo", "pipefail", "-c", step.run], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        AUTHOR_ASSOCIATION: scenario.association,
+        PR_AUTHOR_LOGIN: scenario.login,
+      },
+    });
+    assert.equal(
+      result.status === 0,
+      scenario.accepted,
+      `${scenario.association}/${scenario.login}`,
+    );
+  }
+});
+
 test("default-branch analysis and grouped dependency maintenance are explicit", () => {
   const codeql = parse(readText(".github/workflows/codeql.yml"));
   assert.deepEqual(codeql.on.push, { branches: ["main"] });
@@ -376,7 +413,7 @@ test("coverage evidence fails closed before same-repository upload", () => {
   });
 });
 
-test("merge policy uses member-only auto-merge with ownership routing", () => {
+test("merge policy uses trusted-author auto-merge with ownership routing", () => {
   const policy = readJson(".github/merge-policy.json");
   assert.equal(policy.repository_role, "roastery");
   assert.equal(policy.merge_method, "squash");
@@ -385,6 +422,7 @@ test("merge policy uses member-only auto-merge with ownership routing", () => {
     verified_members_only: true,
   });
   assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
+  assert.deepEqual(policy.eligible_author_logins, ["openboa"]);
   assert.deepEqual(policy.required_events, ["merge_group", "pull_request"]);
   assert.deepEqual(policy.required_checks, [
     { context: "Roastery required", integration_id: 15368 },
