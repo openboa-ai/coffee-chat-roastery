@@ -15,13 +15,25 @@ const actionPins = new Set([
   "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
   "github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
   "github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+  "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+  "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+  "actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1",
 ]);
-const workflowNames = ["codeql.yml", "policy.yml", "quality.yml"];
+const workflowNames = [
+  "codeql.yml",
+  "github-coverage.yml",
+  "policy.yml",
+  "quality.yml",
+];
 const ordinaryPermissions = { contents: "read" };
 const codeqlPermissions = {
   actions: "read",
   contents: "read",
   "security-events": "write",
+};
+const coverageUploadPermissions = {
+  "code-quality": "write",
+  contents: "read",
 };
 
 function fail(message) {
@@ -75,7 +87,7 @@ function validateWorkflow(name, document) {
     fail(`${name}: events must be an object`);
   } else {
     const expectedEvents =
-      name === "codeql.yml"
+      name === "codeql.yml" || name === "github-coverage.yml"
         ? ["merge_group", "pull_request", "push"]
         : ["merge_group", "pull_request"];
     if (
@@ -90,7 +102,7 @@ function validateWorkflow(name, document) {
       }
     }
     if (
-      name === "codeql.yml" &&
+      (name === "codeql.yml" || name === "github-coverage.yml") &&
       JSON.stringify(events.push) !== JSON.stringify({ branches: ["main"] })
     ) {
       fail(`${name}: push analysis must target only main`);
@@ -115,7 +127,10 @@ function validateWorkflow(name, document) {
     const expected =
       name === "codeql.yml" && jobId === "analyze"
         ? codeqlPermissions
-        : ordinaryPermissions;
+        : name === "github-coverage.yml" &&
+            jobId === "upload-coverage-javascript"
+          ? coverageUploadPermissions
+          : ordinaryPermissions;
     if (!sameRecord(job.permissions, expected)) {
       fail(`${name}:${jobId}: permissions do not match the job class`);
     }
@@ -128,10 +143,10 @@ function validateWorkflow(name, document) {
       }
       if (
         step.uses?.startsWith("actions/checkout@") &&
-        ["policy.yml", "quality.yml"].includes(name) &&
+        ["github-coverage.yml", "policy.yml", "quality.yml"].includes(name) &&
         step.with?.["fetch-depth"] !== 0
       ) {
-        fail(`${name}:${jobId}: migration lanes must fetch complete history`);
+        fail(`${name}:${jobId}: required lanes must fetch complete history`);
       }
       if (
         step.uses?.startsWith("actions/setup-node@") &&
@@ -159,6 +174,9 @@ for (const name of discoveredWorkflows) {
     }
     if (/\bsecrets\s*\./u.test(source)) {
       fail(`${name}: secret context is forbidden`);
+    }
+    if (/\|\|\s*true/u.test(source)) {
+      fail(`${name}: shell success masking is forbidden`);
     }
     const document = parse(source);
     workflows.set(name, document);
@@ -219,6 +237,95 @@ if (
   JSON.stringify(policyRuns) !== JSON.stringify(["npm ci", "npm run ci:policy"])
 ) {
   fail("policy.yml: policy job must run only install and the policy checker");
+}
+
+const coverageWorkflow = workflows.get("github-coverage.yml");
+const coverageJob = coverageWorkflow?.jobs?.coverage;
+const coverageSteps = coverageJob?.steps ?? [];
+const coverageCheckout = coverageSteps.find((step) =>
+  String(step.uses).startsWith("actions/checkout@"),
+);
+if (
+  coverageCheckout?.with?.ref !==
+  "${{ github.event.pull_request.head.sha || github.sha }}"
+) {
+  fail("github-coverage.yml: checkout must bind the pull request head SHA");
+}
+const coverageRuns = coverageSteps
+  .filter((step) => typeof step.run === "string")
+  .map((step) => step.run);
+if (
+  !coverageRuns.some(
+    (run) =>
+      run.includes("--experimental-test-coverage") &&
+      run.includes("tests/*.test.mjs"),
+  )
+) {
+  fail("github-coverage.yml: coverage must execute the complete test suite");
+}
+if (
+  !coverageRuns.some(
+    (run) =>
+      run.includes("--require-hashes") &&
+      run.includes(".github/coverage-requirements.txt"),
+  )
+) {
+  fail("github-coverage.yml: converter dependency must be hash locked");
+}
+const coverageArtifact = coverageSteps.find((step) =>
+  String(step.uses).startsWith("actions/upload-artifact@"),
+);
+if (
+  !String(coverageArtifact?.if).includes(
+    "github.event.pull_request.head.repo.full_name == github.repository",
+  ) ||
+  coverageArtifact?.with?.["if-no-files-found"] !== "error" ||
+  coverageArtifact?.with?.["retention-days"] !== 1
+) {
+  fail(
+    "github-coverage.yml: coverage artifact must fail closed and reject forks",
+  );
+}
+const coverageUploadJob =
+  coverageWorkflow?.jobs?.["upload-coverage-javascript"];
+const coverageUploadCondition = String(coverageUploadJob?.if);
+if (
+  coverageUploadJob?.needs !== "coverage" ||
+  !coverageUploadCondition.includes("needs.coverage.result == 'success'") ||
+  !coverageUploadCondition.includes("github.event_name != 'merge_group'") ||
+  !coverageUploadCondition.includes(
+    "github.event.pull_request.head.repo.full_name == github.repository",
+  )
+) {
+  fail("github-coverage.yml: privileged upload boundary is invalid");
+}
+const coverageUploadStep = (coverageUploadJob?.steps ?? []).find((step) =>
+  String(step.uses).startsWith("actions/upload-code-coverage@"),
+);
+if (
+  !sameRecord(coverageUploadStep?.with, {
+    file: "cobertura.xml",
+    language: "JavaScript",
+    label: "roastery-javascript",
+  })
+) {
+  fail("github-coverage.yml: GitHub coverage upload contract changed");
+}
+try {
+  const requirements = readFileSync(
+    resolve(root, ".github/coverage-requirements.txt"),
+    "utf8",
+  );
+  if (
+    requirements !==
+    "lcov_cobertura==2.1.1 --hash=sha256:92f8107297f6d1d7a7a0a88c6071c1ea04f862f2fe918c6ecce271573c37d8aa\n"
+  ) {
+    fail("coverage converter dependency or hash changed");
+  }
+} catch (error) {
+  fail(
+    `coverage converter requirements cannot be read: ${describeError(error)}`,
+  );
 }
 
 const dependencySteps =
