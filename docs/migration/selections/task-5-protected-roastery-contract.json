@@ -43,6 +43,18 @@
       "observable_oracle": "The migration checker validates the exact Task 5 projection, equality input, changed surface set, reviewed authority, and declared base tree."
     },
     {
+      "target_path_or_surface": ".github/workflows/github-coverage.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Prevent untrusted pull requests from executing repository lifecycle or test scripts before author eligibility is established.",
+      "observable_oracle": "Governance tests simulate member, exact official login, and ineligible authors while proving pull-request gating precedes candidate execution and push or merge-group execution remains available."
+    },
+    {
+      "target_path_or_surface": ".github/workflows/policy.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Prevent untrusted pull requests from executing repository lifecycle or test scripts before author eligibility is established.",
+      "observable_oracle": "Governance tests simulate member, exact official login, and ineligible authors while proving pull-request gating precedes candidate execution and push or merge-group execution remains available."
+    },
+    {
       "target_path_or_surface": ".github/workflows/quality.yml",
       "classification": "new-authority",
       "objective_or_failure_mode": "Protect the Roastery contract and publication boundary with least-privilege CI and exact-head human review.",

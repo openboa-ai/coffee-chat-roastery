@@ -70,6 +70,23 @@ function collectByKey(value, key, found = []) {
   return found;
 }
 
+function validateTrustedAuthorStep(step, label) {
+  if (
+    step?.name !== "Verify trusted pull request author" ||
+    step.if !== "github.event_name == 'pull_request'" ||
+    !sameRecord(step.env, {
+      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+      PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
+    }) ||
+    !String(step.run).includes("OWNER|MEMBER") ||
+    !String(step.run).includes("if [ \"$PR_AUTHOR_LOGIN\" = 'openboa' ]") ||
+    String(step.run).includes("COLLABORATOR") ||
+    !String(step.run).includes("exit 1")
+  ) {
+    fail(`${label} must admit only members or the exact official login`);
+  }
+}
+
 function gitPaths(args) {
   const result = spawnSync("git", ["-C", root, ...args], {
     encoding: "utf8",
@@ -212,7 +229,12 @@ if (aggregateJobs.length !== 1) {
   }
   if (
     JSON.stringify(job.needs) !==
-    JSON.stringify(["quality", "publication", "contract-refresh"])
+    JSON.stringify([
+      "eligibility",
+      "quality",
+      "publication",
+      "contract-refresh",
+    ])
   ) {
     fail("quality.yml:aggregate must depend on every required Roastery lane");
   }
@@ -230,27 +252,38 @@ if (aggregateJobs.length !== 1) {
   }
 }
 
-const qualitySteps = workflows.get("quality.yml")?.jobs?.quality?.steps ?? [];
-const trustedAuthorStep = qualitySteps.find(
-  (step) => step.name === "Verify trusted pull request author",
-);
+const qualityWorkflow = workflows.get("quality.yml");
+const eligibilityJob = qualityWorkflow?.jobs?.eligibility;
+const eligibilitySteps = eligibilityJob?.steps ?? [];
+const mergeGroupEligibilityStep = eligibilitySteps[0];
 if (
-  trustedAuthorStep?.if !== "github.event_name == 'pull_request'" ||
-  !sameRecord(trustedAuthorStep.env, {
-    AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-    PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
-  }) ||
-  !String(trustedAuthorStep.run).includes("OWNER|MEMBER") ||
-  !String(trustedAuthorStep.run).includes(
-    "if [ \"$PR_AUTHOR_LOGIN\" = 'openboa' ]",
-  ) ||
-  String(trustedAuthorStep.run).includes("COLLABORATOR") ||
-  !String(trustedAuthorStep.run).includes("exit 1")
+  mergeGroupEligibilityStep?.name !== "Admit merge queue candidate" ||
+  mergeGroupEligibilityStep.if !== "github.event_name == 'merge_group'" ||
+  collectByKey(eligibilityJob, "uses").length !== 0 ||
+  collectByKey(eligibilityJob, "run").some((run) =>
+    /\b(?:git|node|npm|npx)\b/u.test(String(run)),
+  )
 ) {
-  fail("quality.yml must admit only members or the exact official login");
+  fail("quality.yml: eligibility must not execute candidate content");
 }
+validateTrustedAuthorStep(eligibilitySteps[1], "quality.yml:eligibility");
+
+for (const jobId of ["quality", "publication", "contract-refresh"]) {
+  const job = qualityWorkflow?.jobs?.[jobId];
+  const needs = Array.isArray(job?.needs) ? job.needs : [job?.needs];
+  if (!needs.includes("eligibility")) {
+    fail(`quality.yml:${jobId} must depend on author eligibility`);
+  }
+  if (
+    job?.if !== undefined &&
+    !String(job.if).includes("needs.eligibility.result == 'success'")
+  ) {
+    fail(`quality.yml:${jobId} may not bypass failed author eligibility`);
+  }
+}
+
+const qualitySteps = workflows.get("quality.yml")?.jobs?.quality?.steps ?? [];
 const qualityRuns = qualitySteps
-  .filter((step) => step.name !== "Verify trusted pull request author")
   .filter((step) => typeof step.run === "string")
   .map((step) => step.run.trim());
 const expectedQualityRuns = [
@@ -375,7 +408,10 @@ if (
   fail("quality.yml: artifact-bound receipt must be preserved fail closed");
 }
 
-const policyRuns = (workflows.get("policy.yml")?.jobs?.policy?.steps ?? [])
+const policySteps = workflows.get("policy.yml")?.jobs?.policy?.steps ?? [];
+validateTrustedAuthorStep(policySteps[0], "policy.yml:policy");
+const policyRuns = policySteps
+  .filter((step) => step.name !== "Verify trusted pull request author")
   .filter((step) => typeof step.run === "string")
   .map((step) => step.run.trim());
 if (
@@ -387,6 +423,7 @@ if (
 const coverageWorkflow = workflows.get("github-coverage.yml");
 const coverageJob = coverageWorkflow?.jobs?.coverage;
 const coverageSteps = coverageJob?.steps ?? [];
+validateTrustedAuthorStep(coverageSteps[0], "github-coverage.yml:coverage");
 const coverageCheckout = coverageSteps.find((step) =>
   String(step.uses).startsWith("actions/checkout@"),
 );

@@ -12,12 +12,15 @@ on:
 permissions: {}
 
 jobs:
-  quality:
-    name: Roastery deterministic quality
+  eligibility:
+    name: Roastery author eligibility
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
+      - name: Admit merge queue candidate
+        if: github.event_name == 'merge_group'
+        run: printf '%s\n' 'author=admitted_merge_queue_candidate'
       - name: Verify trusted pull request author
         if: github.event_name == 'pull_request'
         env:
@@ -37,6 +40,14 @@ jobs:
           fi
           printf '%s\n' 'author=untrusted' >&2
           exit 1
+
+  quality:
+    name: Roastery deterministic quality
+    needs: eligibility
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
       - name: Check out repository without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -60,6 +71,7 @@ jobs:
 
   publication:
     name: Roastery publication contract
+    needs: eligibility
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -91,6 +103,7 @@ jobs:
 
   contract-refresh:
     name: Roastery contract refresh
+    needs: eligibility
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -149,6 +162,7 @@ jobs:
     name: Roastery required
     if: always()
     needs:
+      - eligibility
       - quality
       - publication
       - contract-refresh
@@ -159,10 +173,12 @@ jobs:
       - name: Interpret required lane state
         env:
           CONTRACT_REFRESH_RESULT: ${{ needs.contract-refresh.result }}
+          ELIGIBILITY_RESULT: ${{ needs.eligibility.result }}
           PUBLICATION_RESULT: ${{ needs.publication.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
         run: |
           for lane in \
+            "eligibility:$ELIGIBILITY_RESULT" \
             "quality:$QUALITY_RESULT" \
             "publication:$PUBLICATION_RESULT" \
             "contract-refresh:$CONTRACT_REFRESH_RESULT"
