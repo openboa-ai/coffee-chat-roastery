@@ -11,7 +11,7 @@ const UUID_V7 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
-const URL_WHITESPACE_OR_CONTROL = /[\s\u0000-\u001f\u007f-\u009f]/u;
+const URL_FORBIDDEN_SYNTAX = /[\\\s\u0000-\u001f\u007f-\u009f]/u;
 const SPECIAL_USE_DNS_TLDS = new Set([
   "alt",
   "arpa",
@@ -109,7 +109,7 @@ function readJson(
 }
 
 function normalizeRepository(value: unknown): string {
-  if (typeof value !== "string" || URL_WHITESPACE_OR_CONTROL.test(value)) {
+  if (typeof value !== "string" || URL_FORBIDDEN_SYNTAX.test(value)) {
     fail("invalid_repository_identity");
   }
   let url: URL;
@@ -134,7 +134,9 @@ function normalizeRepository(value: unknown): string {
   ) {
     fail("invalid_repository_identity");
   }
-  return `https://github.com/${parts[0]}/${parts[1]}`;
+  const normalized = `https://github.com/${parts[0]}/${parts[1]}`;
+  if (value !== normalized) fail("invalid_repository_identity");
+  return normalized;
 }
 
 function contractPin(value: unknown): ContractPin {
@@ -182,18 +184,18 @@ function safeChild(root: string, path: string): void {
 }
 
 function publicOrigin(value: string): boolean {
-  if (URL_WHITESPACE_OR_CONTROL.test(value)) return false;
+  if (URL_FORBIDDEN_SYNTAX.test(value)) return false;
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     return false;
   }
-  const host = url.hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/gu, "")
-    .replace(/\.$/u, "");
+  const parsedHost = url.hostname.toLowerCase().replace(/^\[|\]$/gu, "");
+  const host = parsedHost.replace(/\.$/u, "");
   if (
+    url.href !== value ||
+    parsedHost !== host ||
     url.protocol !== "https:" ||
     url.username !== "" ||
     url.password !== "" ||
