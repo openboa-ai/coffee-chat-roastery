@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -341,6 +348,86 @@ describe("Publication Contract", () => {
     expect(result.status).not.toBe(0);
     expect(result.stdout).toContain('"reason":"invalid_publication_paths"');
   });
+
+  test.each(["symlink", "gitlink"] as const)(
+    "fails closed when a regular Roastery file becomes a %s",
+    async (replacement) => {
+      const fixture = await publicationFixture();
+      fixture.baseSha = fixture.headSha;
+      const indexPath = join(fixture.root, "roastery", "index.json");
+      rmSync(indexPath);
+
+      if (replacement === "symlink") {
+        symlinkSync("CONTENT_LICENSE.md", indexPath);
+      } else {
+        mkdirSync(indexPath);
+        execFileSync("git", [
+          "-C",
+          indexPath,
+          "init",
+          "--quiet",
+          "--initial-branch=main",
+        ]);
+        execFileSync("git", [
+          "-C",
+          indexPath,
+          "config",
+          "user.name",
+          "Fixture Owner",
+        ]);
+        execFileSync("git", [
+          "-C",
+          indexPath,
+          "config",
+          "user.email",
+          "fixture@example.invalid",
+        ]);
+        execFileSync("git", [
+          "-C",
+          indexPath,
+          "commit",
+          "--quiet",
+          "--allow-empty",
+          "-m",
+          "gitlink",
+        ]);
+      }
+
+      execFileSync(
+        "git",
+        [
+          "-C",
+          fixture.root,
+          "-c",
+          "advice.addEmbeddedRepo=false",
+          "add",
+          "roastery/index.json",
+        ],
+        { stdio: "ignore" },
+      );
+      execFileSync("git", [
+        "-C",
+        fixture.root,
+        "commit",
+        "--quiet",
+        "-m",
+        `replace index with ${replacement}`,
+      ]);
+      fixture.headSha = execFileSync(
+        "git",
+        ["-C", fixture.root, "rev-parse", "HEAD"],
+        { encoding: "utf8" },
+      ).trim();
+
+      const result = runPublicationCheck(fixture, "");
+
+      expect(result.status).not.toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        status: "rejected",
+        reason: "invalid_publication_paths",
+      });
+    },
+  );
 
   test("binds the exact owner attestation to one Bean, change set, and head", async () => {
     const headSha = gitHead();

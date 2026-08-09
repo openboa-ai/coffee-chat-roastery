@@ -32,7 +32,8 @@ const CONTRACT_FILE_KEYS = [
 ] as const;
 const SCHEMA_KEYS = CONTRACT_FILE_KEYS.filter((key) => key.endsWith("_schema"));
 const PLACEHOLDER = "<OWNER_PROVIDED_ATTRIBUTION>";
-const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
+const INVALID_ATTRIBUTION_CHARACTER =
+  /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
 
 type ContractFileKey = (typeof CONTRACT_FILE_KEYS)[number];
 
@@ -203,8 +204,8 @@ function parseDeclaration(
     attribution !== attribution.trim() ||
     attribution !== attribution.normalize("NFC") ||
     attribution.length === 0 ||
-    Buffer.byteLength(attribution, "utf8") > 120 ||
-    CONTROL_CHARACTER.test(attribution) ||
+    [...attribution].length > 120 ||
+    INVALID_ATTRIBUTION_CHARACTER.test(attribution) ||
     attribution === PLACEHOLDER
   ) {
     throw new Error("bundle_validation_failed");

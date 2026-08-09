@@ -1,10 +1,21 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const attribution = "Café Owner";
+const contentLicenseSchema = JSON.parse(
+  readFileSync(
+    resolve(repositoryRoot, "contract/schemas/content-license.schema.json"),
+    "utf8",
+  ),
+);
+const validateContentLicenseFrontmatter = new Ajv2020.default({
+  allErrors: true,
+  strict: true,
+}).compile(contentLicenseSchema);
 const expectedDeclaration = `---
 scope: roastery/beans/**
 license: CC-BY-4.0
@@ -61,6 +72,94 @@ describe("fixed Standard Roastery content declaration", () => {
       status: "invalid_content_license",
       reason: "invalid_attribution",
     });
+  });
+
+  test("rejects Unicode line separators across renderer, parser, and schema", async () => {
+    const { renderContentLicense } =
+      await import("../src/projection/content-license.js");
+    const { parseContentLicense } =
+      await import("../src/validation/content-license.js");
+
+    for (const separator of ["\u2028", "\u2029"]) {
+      const unsafeAttribution = `Owner${separator}Name`;
+      expect(() =>
+        renderContentLicense({
+          scope: "roastery/beans/**",
+          license: "CC-BY-4.0",
+          attribution: unsafeAttribution,
+        }),
+      ).toThrow(/attribution/u);
+      expect(
+        validateContentLicenseFrontmatter({
+          scope: "roastery/beans/**",
+          license: "CC-BY-4.0",
+          attribution: unsafeAttribution,
+        }),
+      ).toBe(false);
+      expect(
+        parseContentLicense(
+          expectedDeclaration.replaceAll(attribution, unsafeAttribution),
+        ),
+      ).toMatchObject({ status: "invalid_content_license" });
+    }
+  });
+
+  test("uses the schema-enforceable 120 Unicode code-point attribution limit", async () => {
+    const { renderContentLicense } =
+      await import("../src/projection/content-license.js");
+    const { parseContentLicense } =
+      await import("../src/validation/content-license.js");
+    const { interpretContractBundle } =
+      await import("../src/validation/contract-bundle.js");
+    const atLimit = "\u{1fad8}".repeat(120);
+    const overLimit = "a".repeat(121);
+    const declarationAtLimit = expectedDeclaration.replaceAll(
+      attribution,
+      atLimit,
+    );
+
+    expect(
+      validateContentLicenseFrontmatter({
+        scope: "roastery/beans/**",
+        license: "CC-BY-4.0",
+        attribution: atLimit,
+      }),
+    ).toBe(true);
+    expect(
+      renderContentLicense({
+        scope: "roastery/beans/**",
+        license: "CC-BY-4.0",
+        attribution: atLimit,
+      }),
+    ).toBe(declarationAtLimit);
+    expect(parseContentLicense(declarationAtLimit)).toMatchObject({
+      status: "supported",
+      declaration: { attribution: atLimit },
+    });
+    await expect(
+      interpretContractBundle(
+        repositoryRoot,
+        Buffer.from(declarationAtLimit, "utf8"),
+      ),
+    ).resolves.toMatchObject({
+      validation: "passed",
+      projection: { normalized_attribution: atLimit, status: "supported" },
+    });
+
+    expect(
+      validateContentLicenseFrontmatter({
+        scope: "roastery/beans/**",
+        license: "CC-BY-4.0",
+        attribution: overLimit,
+      }),
+    ).toBe(false);
+    expect(() =>
+      renderContentLicense({
+        scope: "roastery/beans/**",
+        license: "CC-BY-4.0",
+        attribution: overLimit,
+      }),
+    ).toThrow(/120 Unicode code points/u);
   });
 
   test.each([
@@ -147,12 +246,5 @@ describe("fixed Standard Roastery content declaration", () => {
         attribution: ` ${attribution}`,
       }),
     ).toThrow(/attribution/u);
-    expect(() =>
-      renderContentLicense({
-        scope: "roastery/beans/**",
-        license: "CC-BY-4.0",
-        attribution: "가".repeat(41),
-      }),
-    ).toThrow(/120 UTF-8 bytes/u);
   });
 });

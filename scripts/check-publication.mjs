@@ -106,7 +106,7 @@ function changedPaths(root, baseSha, headSha) {
     "diff",
     "--no-renames",
     "--name-only",
-    "--diff-filter=ACMRD",
+    "--diff-filter=ACMRTD",
     "-z",
     `${baseSha}...${headSha}`,
     "--",
