@@ -1,0 +1,11 @@
+{
+  "schema": "coffee-chat/migration-equality-inputs",
+  "target_owner": "openboa-ai/coffee-chat-roastery",
+  "task": "task-5",
+  "objective": "protected-roastery-contract",
+  "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
+  "generator_sha256": "110f1a2a00d8cd7095e79f6c090ffc833f62e3c39adf71790bf29b1e9d7338c7",
+  "objective_selection_sha256": "7306de48a50ccf54aa9255b05bc08134ff46aee95abe4aa665015e41e004a683",
+  "projection_sha256": "32ea5b78b861430072e9e53b5f29653fe8dbfa545c565874bbd0063737441cb0",
+  "changed_surface_classification_sha256": "95a898b4f01e1101b25645ad7040815bd7ac7e7dcbd1903b2b0c4bb7e1cb211e"
+}

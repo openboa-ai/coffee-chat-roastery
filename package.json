@@ -2,14 +2,22 @@
   "name": "@openboa-ai/coffee-chat-roastery",
   "private": true,
   "type": "module",
+  "bin": {
+    "roastery": "src/cli.ts"
+  },
   "engines": {
     "node": ">=24"
   },
   "scripts": {
+    "build:contract-refresh-receipt": "node scripts/build-contract-refresh-receipt.mjs",
     "ci:policy": "node .github/ci-policy.mjs",
     "format:check": "prettier --check .",
     "governance:oracle": "node --test --test-name-pattern='^(required workflows|merge policy and CODEOWNERS|official software|governance bootstrap|official seed)' tests/governance-policy.test.mjs tests/role-boundary.test.mjs",
-    "test": "node --test tests/*.test.mjs",
+    "test": "npm run test:governance && npm run test:roastery",
+    "test:contract-refresh": "vitest run tests/contract-refresh-acceptance.test.ts",
+    "test:governance": "node --test tests/*.test.mjs",
+    "test:publication": "vitest run tests/publication-acceptance.test.ts tests/content-license-contract.test.ts",
+    "test:roastery": "vitest run tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -17,6 +25,7 @@
     "ajv": "8.20.0",
     "prettier": "3.9.6",
     "typescript": "7.0.2",
+    "vitest": "4.1.10",
     "yaml": "2.9.0"
   }
 }

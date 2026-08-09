@@ -4,15 +4,14 @@ This is the official public Roastery repository for Coffee Chat.
 
 ## Current status
 
-This repository is **governance-only** and **Bean-free**. It currently
-establishes the repository trust base; it does not yet implement the Roastery
-contract, validator, Publication Contract, publication CI, or usable fork seed.
-It contains no personal or sample Bean and no Coffee Chat Plugin, evaluator, or
-benchmark runtime.
+This repository is **Bean-free** and owns the protected Roastery contract,
+validator, Publication Contract, and publication checks. It contains no personal
+attribution declaration, personal or sample Bean, usable fork seed, Coffee Chat
+Plugin, evaluator, or benchmark runtime.
 
-The intended role is to become the canonical contract source and empty public
-seed from which each owner can create one public Roastery. Those capabilities
-must arrive through later reviewed pull requests and their own evidence.
+The empty public seed from which an owner can create a Roastery is a separate
+milestone that must pin an immutable protected contract commit and digest. It is
+not part of this contract milestone.
 
 ## Licensing boundary
 
