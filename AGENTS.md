@@ -2,8 +2,10 @@
 
 This repository owns the public canonical Roastery contract boundary, Bean-free
 fork seed authority, and publication-policy boundary for
-`openboa-ai/coffee-chat-roastery`. The current package is a migration shell;
-validator, seed, Publication Contract, and enforcement are deferred.
+`openboa-ai/coffee-chat-roastery`. The package now owns the canonical contract,
+safe content-license renderer/parser, deterministic bundle digest, and Roastery
+validator. The Bean-free seed remains a separate downstream commit so it can pin
+this contract without self-reference.
 
 ## Repository boundary
 
@@ -25,5 +27,7 @@ validator, seed, Publication Contract, and enforcement are deferred.
 - Every substantive change uses a pull request, strong required CI, and
   GitHub-native squash auto-merge. Human approval is not a merge condition.
 - Preserve explicit failed, invalid, skipped, and unavailable states.
+- Contract changes and seed changes remain separate pull requests. A seed may
+  pin only the exact protected contract commit and reproducible bundle digest.
 - Run the deterministic format, type, build, smoke, package, and policy commands
   for changed surfaces. Never describe deferred behavior as ready.

@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { computeContractDigest } from "../dist/index.js";
+
 const root = new URL("..", import.meta.url).pathname;
 
 function run(...args) {
@@ -14,22 +16,24 @@ function run(...args) {
   });
 }
 
-test("the installed CLI exposes only the deferred public commands without writes", () => {
-  const sandbox = mkdtempSync(join(tmpdir(), "roastery-shell-"));
+test("the CLI exposes the three contract commands and fails closed without writes", () => {
+  const digest = run("contract-digest", "--root", root, "--format", "json");
+  assert.equal(digest.status, 0);
+  assert.deepEqual(JSON.parse(digest.stdout), {
+    digest: computeContractDigest(root),
+    status: "valid",
+  });
+
+  const sandbox = mkdtempSync(join(tmpdir(), "roastery-cli-"));
   const sentinel = join(sandbox, "sentinel.txt");
   writeFileSync(sentinel, "unchanged\n");
-
   try {
-    for (const command of ["validate", "project-index", "contract-digest"]) {
-      const result = run(command, "--root", sandbox);
+    for (const command of ["validate", "project-index"]) {
+      const result = run(command, "--root", sandbox, "--check");
       assert.equal(result.status, 1, `${command} must fail closed`);
-      assert.deepEqual(JSON.parse(result.stdout), {
-        command,
-        status: "not_implemented",
-      });
+      assert.equal(JSON.parse(result.stdout).status, "invalid");
       assert.equal(readFileSync(sentinel, "utf8"), "unchanged\n");
     }
-
     const unknown = run("publication-check");
     assert.equal(unknown.status, 1);
     assert.match(unknown.stderr, /unknown command/u);

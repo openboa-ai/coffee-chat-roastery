@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/openboa-ai/coffee-chat-roastery/contract/schemas/roastery.schema.json",
+  "title": "Standard Roastery identity and contract pin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["repository", "contract"],
+  "properties": {
+    "repository": { "type": "string", "format": "uri" },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "digest"],
+      "properties": {
+        "repository": {
+          "const": "https://github.com/openboa-ai/coffee-chat-roastery"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

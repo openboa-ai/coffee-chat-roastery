@@ -1,21 +1,16 @@
 # Roastery Quality Map
 
-## Migration shell available now
+| Objective                                         | Acceptance criteria and oracle                                                                                                           | Representative evidence                 | Gate |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---- |
+| Publish one immutable Standard Roastery contract  | Closed bundle files reproduce one length-framed SHA-256 digest; exact-byte changes alter it                                              | `contract-acceptance.test.mjs`          | PR   |
+| Render one fixed Bean-rights declaration          | Valid owner attribution round-trips to exact bytes and digest; malformed and alternate licenses fail distinctly                          | `contract-acceptance.test.mjs`          | PR   |
+| Keep repository data canonical and non-executable | Bean-free seed and initialized owner shape validate; stale index, unsafe paths, invalid Origins, and missing rights metadata fail closed | `repository-acceptance.test.mjs`        | PR   |
+| Ship the same authority through package and CLI   | Packed offline install includes contract files and required public API; CLI failures write nothing                                       | `shell-smoke.test.mjs`, `package:check` | PR   |
+| Keep publication governance lean                  | Pull request, merge-group, dependency, CodeQL, zero-approval GitHub-native squash rules remain inspectable                               | `ci:policy`, GitHub checks              | PR   |
 
-| Objective                                                        | Evidence                                                | Status            |
-| ---------------------------------------------------------------- | ------------------------------------------------------- | ----------------- |
-| Keep the official repository Bean-free and attribution-free      | Repository layout, README, and MIT license              | Available         |
-| State the future fixed CC BY 4.0 boundary for owner Bean content | README and contract directory note                      | Available         |
-| Ship only `validate`, `project-index`, and `contract-digest`     | Packed offline install and CLI smoke test               | Available, closed |
-| Prevent shell writes and false readiness                         | Each command returns `not_implemented` with exit code 1 | Available         |
-| Keep deterministic governance lean                               | Workflow/policy smoke test and CI policy script         | Available         |
-
-## Implementation deferred
-
-The canonical schema, Roastery seed, validation semantics, index projection,
-contract digest, publication enforcement, compatibility, migration equality,
-refresh logic, and detailed fixtures are not implemented by this repository.
-They require a separately approved change with behavior-level tests.
+Bean prose quality, Coffee usefulness, evaluator performance, benchmark
+validity, contract refresh, and compatibility behavior are outside this
+repository's implementation tests.
 
 ## Verification commands
 
@@ -24,7 +19,7 @@ npm run format:check
 npm run typecheck
 npm run build
 npm run smoke
-npm run ci:policy
 npm run package:check
+npm run ci:policy
 git diff --check
 ```

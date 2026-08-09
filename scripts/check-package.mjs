@@ -30,7 +30,15 @@ try {
     ),
   );
   const packedPaths = new Set(packed[0]?.files?.map((entry) => entry.path));
-  for (const path of ["dist/cli.js", "dist/index.js", "LICENSE", "README.md"]) {
+  for (const path of [
+    "contract/contract.json",
+    "contract/publication.md",
+    "contract/security.md",
+    "dist/cli.js",
+    "dist/index.js",
+    "LICENSE",
+    "README.md",
+  ]) {
     if (!packedPaths.has(path))
       throw new Error(`unpackaged_shell_file:${path}`);
   }
@@ -58,18 +66,22 @@ try {
     },
   );
   const executable = resolve(consumerRoot, "node_modules/.bin/roastery");
-  for (const command of ["validate", "project-index", "contract-digest"]) {
-    const result = spawnSync(executable, [command], {
+  const digest = spawnSync(
+    executable,
+    [
+      "contract-digest",
+      "--root",
+      resolve(consumerRoot, "node_modules/@openboa-ai/coffee-chat-roastery"),
+      "--format",
+      "json",
+    ],
+    {
       cwd: consumerRoot,
       encoding: "utf8",
-    });
-    if (
-      result.status !== 1 ||
-      JSON.stringify(JSON.parse(result.stdout)) !==
-        JSON.stringify({ command, status: "not_implemented" })
-    ) {
-      throw new Error(`installed_cli_invalid:${command}`);
-    }
+    },
+  );
+  if (digest.status !== 0 || JSON.parse(digest.stdout).status !== "valid") {
+    throw new Error("installed_cli_invalid:contract-digest");
   }
   const api = JSON.parse(
     execFileSync(
@@ -86,14 +98,22 @@ try {
       },
     ),
   );
-  if (
-    JSON.stringify(api) !==
-    JSON.stringify(["contractDigest", "projectIndex", "validate"])
-  ) {
+  for (const required of [
+    "ContentLicenseError",
+    "computeContractDigest",
+    "parseContentLicense",
+    "projectIndex",
+    "renderContentLicense",
+    "validate",
+  ]) {
+    if (!api.includes(required))
+      throw new Error(`installed_api_missing:${required}`);
+  }
+  if (api.includes("contractDigest")) {
     throw new Error("installed_api_invalid");
   }
 } finally {
   rmSync(packageSandbox, { force: true, recursive: true });
 }
 
-process.stdout.write('{"status":"valid","package":"shell"}\n');
+process.stdout.write('{"status":"valid","package":"contract"}\n');

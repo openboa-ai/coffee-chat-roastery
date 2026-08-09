@@ -1,0 +1,11 @@
+{
+  "calver": "2026.8.10",
+  "name": "standard-roastery",
+  "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
+  "schemas": {
+    "bean": "schemas/bean-frontmatter.schema.json",
+    "contentLicense": "schemas/content-license.schema.json",
+    "index": "schemas/index.schema.json",
+    "roastery": "schemas/roastery.schema.json"
+  }
+}
