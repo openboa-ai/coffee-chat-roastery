@@ -1,29 +1,49 @@
 {
   "name": "@openboa-ai/coffee-chat-roastery",
+  "version": "2026.8.9",
   "private": true,
   "type": "module",
+  "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
+  "files": [
+    "contract/",
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contract/contract.json": "./contract/contract.json"
+  },
   "bin": {
-    "roastery": "src/cli.ts"
+    "roastery": "dist/cli.js"
   },
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "build:contract-refresh-receipt": "node scripts/build-contract-refresh-receipt.mjs",
+    "build": "node scripts/build.mjs",
     "check:publication": "node scripts/check-publication.mjs",
     "ci:policy": "node .github/ci-policy.mjs",
     "format:check": "prettier --check .",
-    "governance:oracle": "node --test --test-name-pattern='^(required workflows|merge policy and CODEOWNERS|official software|governance bootstrap|official seed)' tests/governance-policy.test.mjs tests/role-boundary.test.mjs",
+    "package:check": "node scripts/check-package.mjs",
     "test": "npm run test:governance && npm run test:roastery",
-    "test:contract-refresh": "vitest run tests/contract-refresh-acceptance.test.ts",
+    "test:coverage": "npm run test:governance && vitest run tests/*.test.ts --coverage.enabled=true --coverage.provider=v8 --coverage.reporter=text --coverage.reporter=cobertura --coverage.include='src/**/*.ts'",
     "test:governance": "node --test tests/*.test.mjs",
     "test:publication": "vitest run tests/publication-acceptance.test.ts tests/content-license-contract.test.ts",
-    "test:roastery": "vitest run tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "test:roastery": "vitest run tests/contract.test.ts tests/security-boundary.test.ts tests/validator.test.ts",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
-    "ajv": "8.20.0",
+    "@vitest/coverage-v8": "4.1.10",
     "prettier": "3.9.6",
     "typescript": "7.0.2",
     "vitest": "4.1.10",

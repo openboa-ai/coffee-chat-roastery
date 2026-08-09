@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  cpSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -15,12 +16,73 @@ import { afterEach, describe, expect, test } from "vitest";
 
 const temporaryRoots: string[] = [];
 const repositoryRoot = resolve(import.meta.dirname, "..");
+const INIT_CONTRACT = `# Standard Roastery Init Contract
+
+Init is a Plugin-owned operation that consumes this fixed producer contract.
+This repository defines the Preview and acceptance boundary; it does not
+implement Plugin UI, GitHub orchestration, or write-side state transitions.
+
+## Exact Preview before every write
+
+Before any fork, branch, pull request, file, or Registry write, Init MUST show
+one exact Preview containing:
+
+- the public source repository
+  \`https://github.com/openboa-ai/coffee-chat-roastery\`;
+- the target owner, repository name \`coffee-chat\`, public visibility, and
+  default branch;
+- the affected local Registry state and the branch/pull-request process;
+- the recovery boundary;
+- the validated owner attribution;
+- the exact rendered \`roastery/CONTENT_LICENSE.md\` bytes; and
+- the SHA-256 digest of those exact declaration bytes.
+
+The same Preview MUST state all seven fixed notice facts:
+
+1. Standard Roastery Beans are public.
+2. CC BY 4.0 permits sharing, commercial use, and adaptations, including
+   AI-assisted or AI-generated adaptations.
+3. Downstream users must provide attribution, link the license, and indicate
+   changes without implying endorsement.
+4. The grant is not revocable for recipients who already received it under the
+   license.
+5. The publisher may license only rights they own or control.
+6. Origin URLs and the resources they identify are excluded.
+7. An AI Coffee response is not the publisher's original wording or endorsement.
+
+## Exact acceptance
+
+Init MAY begin its first write only after the user explicitly accepts that exact
+Preview, the rendered declaration and digest, the owner attribution, and the
+rights-authority attestation. Acceptance is single-use and bound to the complete
+Preview. Any changed Preview is stale and requires a new acceptance.
+
+## Zero-write outcomes
+
+Rejection, cancellation, invalid attribution, missing authority, or a stale
+Preview MUST produce zero fork, branch, pull-request, file, and Registry writes.
+No partial initialization, default acceptance, alternate license mode, or reused
+acceptance is permitted.
+`;
 
 function temporaryRepository(prefix: string): string {
   const root = mkdtempSync(join(tmpdir(), prefix));
   temporaryRoots.push(root);
   mkdirSync(join(root, "contract"), { recursive: true });
   return root;
+}
+
+function copyDeclaredBundle(destination: string): void {
+  const contract = JSON.parse(
+    readFileSync(resolve(repositoryRoot, "contract/contract.json"), "utf8"),
+  ) as { files: Record<string, string> };
+  for (const path of [
+    "contract/contract.json",
+    ...Object.values(contract.files),
+  ]) {
+    mkdirSync(resolve(destination, path, ".."), { recursive: true });
+    cpSync(resolve(repositoryRoot, path), resolve(destination, path));
+  }
 }
 
 afterEach(() => {
@@ -30,24 +92,42 @@ afterEach(() => {
 });
 
 describe("protected contract bundle", () => {
-  test("hashes sorted regular files with stable length framing", async () => {
+  test("ships the fixed Init Preview, acceptance, and zero-write contract bytes", () => {
+    expect(
+      readFileSync(resolve(repositoryRoot, "contract/init.md"), "utf8"),
+    ).toBe(INIT_CONTRACT);
+  });
+
+  test("binds contract and runtime authority bytes through one manifest", async () => {
     const root = temporaryRepository("roastery-contract-digest-");
-    mkdirSync(join(root, "contract", "nested"));
-    writeFileSync(join(root, "contract", "nested", "b.txt"), "beta\n");
-    writeFileSync(join(root, "contract", "a.txt"), "alpha\n");
+    copyDeclaredBundle(root);
+    writeFileSync(join(root, "contract", "init.md"), INIT_CONTRACT);
 
     const { digestContractBundle } = await import("../src/contract/digest.js");
+    const original = await digestContractBundle(root);
 
-    await expect(digestContractBundle(root)).resolves.toBe(
-      "sha256:e8c8cff9d2093bdaecfb63c50ea75333dc8f1ec97c17b042db765eed3c035768",
+    writeFileSync(
+      join(root, "dist", "validation", "bean.js"),
+      `${readFileSync(join(root, "dist", "validation", "bean.js"), "utf8")}\n`,
     );
+    const runtimeChanged = await digestContractBundle(root);
+    writeFileSync(
+      join(root, "contract", "init.md"),
+      `${readFileSync(join(root, "contract", "init.md"), "utf8")}\n`,
+    );
+    const initChanged = await digestContractBundle(root);
+
+    expect(runtimeChanged).not.toBe(original);
+    expect(initChanged).not.toBe(runtimeChanged);
   });
 
   test("rejects a bundle whose contract tree contains a symbolic link", async () => {
     const root = temporaryRepository("roastery-contract-symlink-");
+    copyDeclaredBundle(root);
     const outside = join(root, "outside.txt");
     writeFileSync(outside, "outside\n");
-    symlinkSync(outside, join(root, "contract", "linked.txt"));
+    rmSync(join(root, "contract", "publication.md"));
+    symlinkSync(outside, join(root, "contract", "publication.md"));
 
     const { digestContractBundle } = await import("../src/contract/digest.js");
 
@@ -96,19 +176,6 @@ describe("protected contract bundle", () => {
           attribution: "Example Owner",
         },
       },
-      {
-        path: "contract/schemas/rights-semantics.schema.json",
-        valid: {
-          scope: "roastery/beans/**",
-          spdx_identifier: "CC-BY-4.0",
-          official_license_url: "https://creativecommons.org/licenses/by/4.0/",
-          normalized_attribution: "Example Owner",
-          status: "supported",
-          attribution_required: true,
-          change_indication_required: true,
-          product_provenance_required: true,
-        },
-      },
     ] as const;
 
     for (const schemaCase of schemaCases) {
@@ -124,42 +191,52 @@ describe("protected contract bundle", () => {
     }
   });
 
-  test("keeps the Bean schema and validator aligned for public Origins", async () => {
+  test("keeps Origin URL semantics out of the structural Bean schema", async () => {
     const cases = [
       {
         name: "public DNS Origin",
         origin: "https://Example.com:443/source?id=1",
-        expected: true,
+        validatorStatus: "valid",
+      },
+      {
+        name: "maximum HTTPS port",
+        origin: "https://example.com:65535/source",
+        validatorStatus: "valid",
+      },
+      {
+        name: "out-of-range HTTPS port",
+        origin: "https://example.com:65536/source",
+        validatorStatus: "invalid",
       },
       {
         name: "non-HTTPS Origin",
         origin: "http://example.com/source",
-        expected: false,
+        validatorStatus: "invalid",
       },
       {
         name: "credential-bearing Origin",
         origin: "https://owner@example.com/source",
-        expected: false,
+        validatorStatus: "invalid",
       },
       {
         name: "IPv4 Origin",
         origin: "https://127.0.0.1/private",
-        expected: false,
+        validatorStatus: "invalid",
       },
       {
         name: "IPv6 Origin",
         origin: "https://[::1]/private",
-        expected: false,
+        validatorStatus: "invalid",
       },
       {
         name: "single-label Origin",
         origin: "https://intranet/private",
-        expected: false,
+        validatorStatus: "invalid",
       },
       {
         name: "special-use Origin",
         origin: "https://service.InTeRnAl/private",
-        expected: false,
+        validatorStatus: "invalid",
       },
     ] as const;
     const id = "01890f3a-2b00-7000-8000-000000000001";
@@ -178,7 +255,7 @@ describe("protected contract bundle", () => {
     }).compile(schema);
     const { validateBeanFile } = await import("../src/validation/bean.js");
 
-    for (const { name, origin, expected } of cases) {
+    for (const { name, origin, validatorStatus } of cases) {
       const beanBytes = Buffer.from(
         `---\nid: ${id}\norigins:\n  - ${origin}\n---\nBody.\n`,
       );
@@ -186,30 +263,43 @@ describe("protected contract bundle", () => {
       expect(
         validateSchema({ id, origins: [origin] }),
         `${name}: ${JSON.stringify(validateSchema.errors)}`,
-      ).toBe(expected);
+      ).toBe(true);
       expect(
         validateBeanFile(`roastery/beans/${id}.md`, beanBytes).status,
         name,
-      ).toBe(expected ? "valid" : "invalid");
+      ).toBe(validatorStatus);
     }
   });
 
-  test("publishes a manifest whose declared files exactly match the bundle", () => {
+  test("publishes one tracked and packageable manifest for every vendored authority", () => {
     const contract = JSON.parse(
       readFileSync(resolve(repositoryRoot, "contract/contract.json"), "utf8"),
     );
     const declaredPaths = Object.values(contract.files).sort();
     const expectedPaths = [
+      "contract/init.md",
       "contract/publication.md",
       "contract/schemas/bean-frontmatter.schema.json",
       "contract/schemas/content-license.schema.json",
-      "contract/schemas/contract-refresh-evidence.schema.json",
-      "contract/schemas/contract-refresh-receipt.schema.json",
       "contract/schemas/index.schema.json",
-      "contract/schemas/rights-semantics.schema.json",
       "contract/schemas/roastery.schema.json",
       "contract/security.md",
       "contract/templates/content-license.md",
+      "dist/cli.js",
+      "dist/contract/digest.js",
+      "dist/contract/manifest.js",
+      "dist/contract/types.js",
+      "dist/index.js",
+      "dist/projection/content-license.js",
+      "dist/projection/index.js",
+      "dist/validation/bean.js",
+      "dist/validation/content-license.js",
+      "dist/validation/contract-bundle.js",
+      "dist/validation/filesystem.js",
+      "dist/validation/index.js",
+      "dist/validation/publication.js",
+      "dist/validation/repository.js",
+      "dist/validation/roastery.js",
     ].sort();
 
     expect(contract.repository).toBe(
@@ -222,7 +312,7 @@ describe("protected contract bundle", () => {
       path_length_bytes: 4,
       content_length_bytes: 8,
       byte_order: "big-endian",
-      path_base: "contract/",
+      path_base: "repository",
       path_order: "utf8-bytewise",
     });
     expect(

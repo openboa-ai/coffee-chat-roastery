@@ -12,6 +12,8 @@ const utf8 = new TextDecoder("utf-8", { fatal: true });
 export type BeanValidationResult =
   { status: "valid"; bean: Bean } | { status: "invalid"; reason: string };
 
+export type StructuralValidator = (value: unknown) => boolean;
+
 export function isLowercaseUuidV7(value: string): boolean {
   return UUID_V7.test(value);
 }
@@ -53,6 +55,7 @@ function isPublicHttpsOrigin(value: string): boolean {
 export function validateBeanFile(
   relativePath: string,
   bytes: Uint8Array,
+  validateStructure?: StructuralValidator,
 ): BeanValidationResult {
   const pathMatch = BEAN_PATH.exec(relativePath);
   if (!pathMatch) return { status: "invalid", reason: "invalid_bean_path" };
@@ -71,14 +74,11 @@ export function validateBeanFile(
     return { status: "invalid", reason: "invalid_bean_frontmatter" };
   }
   const frontmatterLines = source.slice(4, boundary).split("\n");
-  const idMatch = /^id: ([0-9a-f-]+)$/u.exec(frontmatterLines[0] ?? "");
-  if (!idMatch || !isLowercaseUuidV7(idMatch[1] ?? "")) {
+  const idMatch = /^id: (\S+)$/u.exec(frontmatterLines[0] ?? "");
+  if (!idMatch) {
     return { status: "invalid", reason: "invalid_bean_frontmatter" };
   }
   const id = idMatch[1] as string;
-  if (id !== pathMatch[1]) {
-    return { status: "invalid", reason: "bean_id_path_mismatch" };
-  }
 
   let origins: string[] | undefined;
   if (frontmatterLines.length > 1) {
@@ -88,14 +88,29 @@ export function validateBeanFile(
     origins = [];
     for (const line of frontmatterLines.slice(2)) {
       const originMatch = /^  - (\S.*)$/u.exec(line);
-      if (!originMatch || !isPublicHttpsOrigin(originMatch[1] ?? "")) {
-        return { status: "invalid", reason: "invalid_origin" };
+      if (!originMatch) {
+        return { status: "invalid", reason: "invalid_bean_frontmatter" };
       }
       origins.push(originMatch[1] as string);
     }
-    if (new Set(origins).size !== origins.length) {
-      return { status: "invalid", reason: "invalid_origin" };
-    }
+  }
+
+  const frontmatter = origins === undefined ? { id } : { id, origins };
+  if (validateStructure !== undefined && !validateStructure(frontmatter)) {
+    return { status: "invalid", reason: "invalid_bean_frontmatter" };
+  }
+  if (!isLowercaseUuidV7(id)) {
+    return { status: "invalid", reason: "invalid_bean_frontmatter" };
+  }
+  if (id !== pathMatch[1]) {
+    return { status: "invalid", reason: "bean_id_path_mismatch" };
+  }
+  if (
+    origins !== undefined &&
+    (new Set(origins).size !== origins.length ||
+      origins.some((origin) => !isPublicHttpsOrigin(origin)))
+  ) {
+    return { status: "invalid", reason: "invalid_origin" };
   }
 
   const body = source.slice(boundary + 5);

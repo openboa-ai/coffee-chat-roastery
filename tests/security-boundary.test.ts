@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   cpSync,
   lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   symlinkSync,
@@ -19,38 +20,73 @@ import { afterEach, describe, expect, test } from "vitest";
 const temporaryRoots: string[] = [];
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const cliPath = resolve(repositoryRoot, "src/cli.ts");
+const beanId = "01890f3a-2b00-7000-8000-000000000001";
 
 function temporaryRepository(): string {
   const root = mkdtempSync(join(tmpdir(), "roastery-security-"));
   temporaryRoots.push(root);
-  cpSync(resolve(repositoryRoot, "contract"), join(root, "contract"), {
-    recursive: true,
-  });
+  copyDeclaredBundle(repositoryRoot, root);
   mkdirSync(join(root, "roastery", "beans"), { recursive: true });
   return root;
 }
 
-function runCli(arguments_: string[]) {
-  return spawnSync(process.execPath, [cliPath, ...arguments_], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-  });
+function copyDeclaredBundle(sourceRoot: string, destinationRoot: string): void {
+  const contract = JSON.parse(
+    readFileSync(join(sourceRoot, "contract", "contract.json"), "utf8"),
+  ) as { files: Record<string, string> };
+  for (const path of [
+    "contract/contract.json",
+    ...Object.values(contract.files),
+  ]) {
+    mkdirSync(resolve(destinationRoot, path, ".."), { recursive: true });
+    cpSync(resolve(sourceRoot, path), resolve(destinationRoot, path));
+  }
 }
 
-function validateCommand(root: string, digest: string): string[] {
-  return [
-    "validate",
-    "--root",
-    root,
-    "--trusted-contract-repository",
-    "https://github.com/openboa-ai/coffee-chat-roastery",
-    "--trusted-contract-commit",
-    "1".repeat(40),
-    "--trusted-contract-digest",
-    digest,
-    "--format",
-    "json",
-  ];
+function packageCommit(root = repositoryRoot): string {
+  const packageDocument = JSON.parse(
+    readFileSync(resolve(root, "package.json"), "utf8"),
+  ) as { gitHead?: string };
+  return (
+    packageDocument.gitHead ??
+    execFileSync("git", ["-C", root, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim()
+  );
+}
+
+function runCli(
+  arguments_: string[],
+  executable = cliPath,
+  cwd = repositoryRoot,
+) {
+  return spawnSync(
+    process.execPath,
+    [realpathSync(executable), ...arguments_],
+    {
+      cwd: realpathSync(cwd),
+      encoding: "utf8",
+    },
+  );
+}
+
+function validateCommand(
+  root: string,
+  contract?: { commit: string; digest: string },
+): string[] {
+  return contract === undefined
+    ? ["validate", "--root", root, "--format", "json"]
+    : [
+        "validate",
+        "--root",
+        root,
+        "--contract-commit",
+        contract.commit,
+        "--contract-digest",
+        contract.digest,
+        "--format",
+        "json",
+      ];
 }
 
 function treeDigest(root: string): string {
@@ -71,7 +107,10 @@ function treeDigest(root: string): string {
   return hash.digest("hex");
 }
 
-async function initializeEmptyRepository(root: string): Promise<string> {
+async function initializeEmptyRepository(
+  root: string,
+  commit = packageCommit(),
+): Promise<string> {
   const { digestContractBundle } = await import("../src/contract/digest.js");
   const digest = await digestContractBundle(root);
   writeFileSync(
@@ -81,7 +120,7 @@ async function initializeEmptyRepository(root: string): Promise<string> {
         repository: "https://github.com/fixture-owner/fixture-roastery",
         contract: {
           repository: "https://github.com/openboa-ai/coffee-chat-roastery",
-          commit: "1".repeat(40),
+          commit,
           digest,
         },
       },
@@ -96,6 +135,94 @@ async function initializeEmptyRepository(root: string): Promise<string> {
   return digest;
 }
 
+async function initializeBeanRepository(
+  root: string,
+  commit = packageCommit(),
+): Promise<string> {
+  const digest = await initializeEmptyRepository(root, commit);
+  const { renderContentLicense } =
+    await import("../src/projection/content-license.js");
+  const beanBytes = `---\nid: ${beanId}\norigins:\n  - https://example.com/source\n---\nBody.\n`;
+  writeFileSync(
+    join(root, "roastery", "CONTENT_LICENSE.md"),
+    renderContentLicense({
+      scope: "roastery/beans/**",
+      license: "CC-BY-4.0",
+      attribution: "Fixture Owner",
+    }),
+  );
+  writeFileSync(join(root, "roastery", "beans", `${beanId}.md`), beanBytes);
+  writeFileSync(
+    join(root, "roastery", "index.json"),
+    `${JSON.stringify(
+      {
+        beans: [
+          {
+            id: beanId,
+            content_digest: `sha256:${createHash("sha256")
+              .update(beanBytes)
+              .digest("hex")}`,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return digest;
+}
+
+function copiedInstalledPackage(): string {
+  const root = mkdtempSync(join(tmpdir(), "roastery-installed-package-"));
+  temporaryRoots.push(root);
+  cpSync(
+    resolve(repositoryRoot, "package.json"),
+    resolve(root, "package.json"),
+  );
+  cpSync(resolve(repositoryRoot, "src"), resolve(root, "src"), {
+    recursive: true,
+  });
+  cpSync(resolve(repositoryRoot, "dist"), resolve(root, "dist"), {
+    recursive: true,
+  });
+  cpSync(resolve(repositoryRoot, "contract"), resolve(root, "contract"), {
+    recursive: true,
+  });
+  symlinkSync(
+    resolve(repositoryRoot, "node_modules"),
+    resolve(root, "node_modules"),
+    "dir",
+  );
+  return root;
+}
+
+function installedPackage(schemaKey: string): string {
+  const root = copiedInstalledPackage();
+
+  const contract = JSON.parse(
+    readFileSync(resolve(root, "contract/contract.json"), "utf8"),
+  ) as { files: Record<string, string> };
+  const schemaPath = resolve(root, contract.files[schemaKey] as string);
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
+    properties: Record<string, Record<string, unknown>>;
+  };
+  if (schemaKey === "roastery_schema") {
+    schema.properties.repository = {
+      const: "https://github.com/schema-owner/schema-roastery",
+    };
+  } else if (schemaKey === "index_schema") {
+    const beans = schema.properties.beans;
+    if (beans === undefined) throw new Error("index schema has no beans field");
+    beans.maxItems = 0;
+  } else if (schemaKey === "bean_frontmatter_schema") {
+    schema.properties.id = { const: "01890f3a-2b00-7000-8000-000000000002" };
+  } else {
+    schema.properties.attribution = { const: "Schema Owner" };
+  }
+  writeFileSync(schemaPath, `${JSON.stringify(schema, null, 2)}\n`);
+  return root;
+}
+
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) {
     rmSync(root, { force: true, recursive: true });
@@ -103,14 +230,28 @@ afterEach(() => {
 });
 
 describe("local CLI boundary", () => {
+  test("validates from an installed package with an explicit official contract pin", async () => {
+    const packageRoot = copiedInstalledPackage();
+    const root = temporaryRepository();
+    const commit = "3".repeat(40);
+    const digest = await initializeEmptyRepository(root, commit);
+
+    const result = runCli(
+      validateCommand(root, { commit, digest }),
+      resolve(packageRoot, "dist/cli.js"),
+      packageRoot,
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "valid",
+      contract: { commit, digest },
+    });
+  });
+
   test("rejects a repository that self-authorizes a replacement contract bundle", async () => {
     const root = temporaryRepository();
     const trustedDigest = await initializeEmptyRepository(root);
-    const trustedContract = {
-      repository: "https://github.com/openboa-ai/coffee-chat-roastery" as const,
-      commit: "1".repeat(40),
-      digest: trustedDigest as `sha256:${string}`,
-    };
     writeFileSync(
       join(root, "contract", "publication.md"),
       "attacker-controlled replacement contract\n",
@@ -123,7 +264,7 @@ describe("local CLI boundary", () => {
         {
           repository: "https://github.com/fixture-owner/fixture-roastery",
           contract: {
-            ...trustedContract,
+            repository: "https://github.com/openboa-ai/coffee-chat-roastery",
             commit: "2".repeat(40),
             digest: replacementDigest,
           },
@@ -132,22 +273,51 @@ describe("local CLI boundary", () => {
         2,
       )}\n`,
     );
-    const { validateRepository } =
-      await import("../src/validation/repository.js");
 
-    const result = await validateRepository(root, trustedContract);
+    const result = runCli(validateCommand(root));
 
-    expect(result).toEqual({
+    expect(result.status).not.toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
       status: "invalid",
       reason: "contract_mismatch",
     });
+    expect(trustedDigest).not.toBe(replacementDigest);
+  });
+
+  test.each([
+    "roastery_schema",
+    "index_schema",
+    "bean_frontmatter_schema",
+    "content_license_schema",
+  ])("applies the vendored %s to parsed repository data", async (schemaKey) => {
+    const packageRoot = installedPackage(schemaKey);
+    const root = mkdtempSync(join(tmpdir(), "roastery-schema-consumer-"));
+    temporaryRoots.push(root);
+    copyDeclaredBundle(packageRoot, root);
+    mkdirSync(join(root, "roastery", "beans"), { recursive: true });
+    const commit = "3".repeat(40);
+    const { digestContractBundle } = await import("../src/contract/digest.js");
+    const digest = await digestContractBundle(packageRoot);
+    await initializeBeanRepository(root, commit);
+
+    const result = runCli(
+      validateCommand(root, { commit, digest }),
+      resolve(packageRoot, "dist/cli.js"),
+      packageRoot,
+    );
+
+    expect(
+      result.status,
+      `${schemaKey}: ${result.stdout}\n${result.stderr}`,
+    ).not.toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "invalid" });
   });
 
   test("exposes only validate, project-index, and contract-digest with structured statuses", async () => {
     const root = temporaryRepository();
     const digest = await initializeEmptyRepository(root);
 
-    const validate = runCli(validateCommand(root, digest));
+    const validate = runCli(validateCommand(root));
     expect(validate.status, validate.stderr).toBe(0);
     expect(JSON.parse(validate.stdout)).toMatchObject({
       status: "valid",
@@ -212,6 +382,62 @@ describe("local CLI boundary", () => {
   });
 });
 
+describe("canonical repository validation", () => {
+  test.each([
+    {
+      name: "maximum HTTPS port",
+      origin: "https://example.com:65535/source",
+      duplicateIndexEntry: false,
+      expected: { status: "valid" },
+    },
+    {
+      name: "out-of-range HTTPS port",
+      origin: "https://example.com:65536/source",
+      duplicateIndexEntry: false,
+      expected: { status: "invalid", reason: "invalid_bean" },
+    },
+    {
+      name: "duplicate Bean ID",
+      origin: "https://example.com/source",
+      duplicateIndexEntry: true,
+      expected: { status: "invalid", reason: "duplicate_bean_id" },
+    },
+  ])("handles $name at the repository boundary", async (scenario) => {
+    const root = temporaryRepository();
+    await initializeEmptyRepository(root);
+    const { renderContentLicense } =
+      await import("../src/projection/content-license.js");
+    const beanBytes = `---\nid: ${beanId}\norigins:\n  - ${scenario.origin}\n---\nBody.\n`;
+    const entry = {
+      id: beanId,
+      content_digest: `sha256:${createHash("sha256").update(beanBytes).digest("hex")}`,
+    };
+    writeFileSync(
+      join(root, "roastery", "CONTENT_LICENSE.md"),
+      renderContentLicense({
+        scope: "roastery/beans/**",
+        license: "CC-BY-4.0",
+        attribution: "Fixture Owner",
+      }),
+    );
+    writeFileSync(join(root, "roastery", "beans", `${beanId}.md`), beanBytes);
+    writeFileSync(
+      join(root, "roastery", "index.json"),
+      `${JSON.stringify(
+        { beans: scenario.duplicateIndexEntry ? [entry, entry] : [entry] },
+        null,
+        2,
+      )}\n`,
+    );
+    const { validateRepository } =
+      await import("../src/validation/repository.js");
+
+    await expect(validateRepository(root)).resolves.toMatchObject(
+      scenario.expected,
+    );
+  });
+});
+
 describe("filesystem trust boundary", () => {
   test("reports a missing Roastery as missing evidence instead of an unsafe path", async () => {
     const root = temporaryRepository();
@@ -240,18 +466,20 @@ describe("filesystem trust boundary", () => {
     symlinkSync(targetRoot, linkedRoot, "dir");
     const before = treeDigest(targetRoot);
 
-    for (const command of [
-      validateCommand(linkedRoot, digest),
-      ["contract-digest", "--root", linkedRoot, "--format", "json"],
-      ["project-index", "--root", linkedRoot, "--check"],
-      ["project-index", "--root", linkedRoot],
-    ]) {
-      const result = runCli(command);
-      expect(result.status, command.join(" ")).not.toBe(0);
-      expect(JSON.parse(result.stdout), command.join(" ")).toMatchObject({
-        status: "invalid",
-        reason: "unsafe_repository_path",
-      });
+    for (const selectedRoot of [linkedRoot, `${linkedRoot}/.`]) {
+      for (const command of [
+        validateCommand(selectedRoot),
+        ["contract-digest", "--root", selectedRoot, "--format", "json"],
+        ["project-index", "--root", selectedRoot, "--check"],
+        ["project-index", "--root", selectedRoot],
+      ]) {
+        const result = runCli(command);
+        expect(result.status, command.join(" ")).not.toBe(0);
+        expect(JSON.parse(result.stdout), command.join(" ")).toMatchObject({
+          status: "invalid",
+          reason: "unsafe_repository_path",
+        });
+      }
     }
     expect(treeDigest(targetRoot)).toBe(before);
   });
@@ -323,7 +551,7 @@ describe("filesystem trust boundary", () => {
     );
     const before = readFileSync(outside, "utf8");
 
-    const result = runCli(validateCommand(root, digest));
+    const result = runCli(validateCommand(root));
 
     expect(result.status).not.toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({

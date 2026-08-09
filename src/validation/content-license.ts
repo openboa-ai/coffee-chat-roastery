@@ -24,6 +24,7 @@ export type ContentLicenseParseResult =
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 const SPDX_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9.-]*$/u;
+type StructuralValidator = (value: unknown) => boolean;
 
 function invalid(reason: string): ContentLicenseParseResult {
   return { status: "invalid_content_license", reason };
@@ -31,6 +32,7 @@ function invalid(reason: string): ContentLicenseParseResult {
 
 export function parseContentLicense(
   input: string | Uint8Array,
+  validateStructure?: StructuralValidator,
 ): ContentLicenseParseResult {
   let source: string;
   try {
@@ -52,9 +54,7 @@ export function parseContentLicense(
   if (!scopeMatch || !licenseMatch || !attributionMatch) {
     return invalid("invalid_frontmatter");
   }
-  if (scopeMatch[1] !== CONTENT_LICENSE_SCOPE) return invalid("invalid_scope");
   const identifier = licenseMatch[1] ?? "";
-  if (!SPDX_IDENTIFIER.test(identifier)) return invalid("invalid_license");
 
   let attribution: unknown;
   try {
@@ -62,6 +62,17 @@ export function parseContentLicense(
   } catch {
     return invalid("invalid_attribution");
   }
+  const frontmatter = {
+    scope: scopeMatch[1],
+    license: identifier,
+    attribution,
+  };
+  if (validateStructure !== undefined && !validateStructure(frontmatter)) {
+    return invalid("invalid_structure");
+  }
+  if (scopeMatch[1] !== CONTENT_LICENSE_SCOPE) return invalid("invalid_scope");
+  if (!SPDX_IDENTIFIER.test(identifier)) return invalid("invalid_license");
+
   let normalizedAttribution: string;
   try {
     normalizedAttribution = normalizeOwnerAttribution(attribution);

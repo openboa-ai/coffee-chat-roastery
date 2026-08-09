@@ -1,5 +1,5 @@
 import { lstat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export type NoFollowPathResult = "present" | "missing";
 
@@ -19,9 +19,10 @@ export async function requireNoFollowPath(
     throw new Error("unsafe_repository_path");
   }
 
+  const normalizedRoot = resolve(root);
   let rootMetadata;
   try {
-    rootMetadata = await lstat(root);
+    rootMetadata = await lstat(normalizedRoot);
   } catch {
     throw new Error("unsafe_repository_path");
   }
@@ -29,7 +30,7 @@ export async function requireNoFollowPath(
     throw new Error("unsafe_repository_path");
   }
 
-  let current = root;
+  let current = normalizedRoot;
   for (let index = 0; index < segments.length; index += 1) {
     current = join(current, segments[index] as string);
     let metadata;

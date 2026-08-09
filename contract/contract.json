@@ -6,7 +6,7 @@
     "path_length_bytes": 4,
     "content_length_bytes": 8,
     "byte_order": "big-endian",
-    "path_base": "contract/",
+    "path_base": "repository",
     "path_order": "utf8-bytewise"
   },
   "content_license": {
@@ -24,11 +24,24 @@
     "index_schema": "contract/schemas/index.schema.json",
     "bean_frontmatter_schema": "contract/schemas/bean-frontmatter.schema.json",
     "content_license_schema": "contract/schemas/content-license.schema.json",
-    "rights_semantics_schema": "contract/schemas/rights-semantics.schema.json",
-    "contract_refresh_evidence_schema": "contract/schemas/contract-refresh-evidence.schema.json",
-    "contract_refresh_receipt_schema": "contract/schemas/contract-refresh-receipt.schema.json",
     "content_license_template": "contract/templates/content-license.md",
+    "init_contract": "contract/init.md",
     "publication_contract": "contract/publication.md",
-    "security_contract": "contract/security.md"
+    "security_contract": "contract/security.md",
+    "public_cli": "dist/cli.js",
+    "contract_digest": "dist/contract/digest.js",
+    "contract_manifest_parser": "dist/contract/manifest.js",
+    "contract_types": "dist/contract/types.js",
+    "public_api": "dist/index.js",
+    "content_license_renderer": "dist/projection/content-license.js",
+    "index_projection": "dist/projection/index.js",
+    "bean_validator": "dist/validation/bean.js",
+    "content_license_parser": "dist/validation/content-license.js",
+    "contract_bundle_validator": "dist/validation/contract-bundle.js",
+    "filesystem_validator": "dist/validation/filesystem.js",
+    "index_validator": "dist/validation/index.js",
+    "publication_validator": "dist/validation/publication.js",
+    "repository_validator": "dist/validation/repository.js",
+    "roastery_validator": "dist/validation/roastery.js"
   }
 }

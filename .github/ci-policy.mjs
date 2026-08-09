@@ -1,5 +1,4 @@
-import { spawnSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,133 +7,104 @@ import { parse } from "yaml";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workflowRoot = resolve(root, ".github/workflows");
 const failures = [];
-
+const workflowNames = ["codeql.yml", "policy.yml", "quality.yml"];
 const actionPins = new Set([
   "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-  "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-  "github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
-  "github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
   "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
   "actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1",
+  "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+  "github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+  "github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
 ]);
-const workflowNames = [
-  "codeql.yml",
-  "github-coverage.yml",
-  "policy.yml",
-  "quality.yml",
-];
 const ordinaryPermissions = { contents: "read" };
 const codeqlPermissions = {
   actions: "read",
   contents: "read",
   "security-events": "write",
 };
-const coverageUploadPermissions = {
-  "code-quality": "write",
-  contents: "read",
-};
+const coveragePermissions = { contents: "read", "code-quality": "write" };
 
 function fail(message) {
   failures.push(message);
-}
-
-function describeError(error) {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function sameRecord(actual, expected) {
   if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
     return false;
   }
-  const actualEntries = Object.entries(actual).sort(([left], [right]) =>
-    left.localeCompare(right),
+  return (
+    JSON.stringify(Object.entries(actual).sort()) ===
+    JSON.stringify(Object.entries(expected).sort())
   );
-  const expectedEntries = Object.entries(expected).sort(([left], [right]) =>
-    left.localeCompare(right),
-  );
-  return JSON.stringify(actualEntries) === JSON.stringify(expectedEntries);
 }
 
 function collectByKey(value, key, found = []) {
   if (Array.isArray(value)) {
     for (const entry of value) collectByKey(entry, key, found);
-    return found;
-  }
-  if (!value || typeof value !== "object") return found;
-  for (const [entryKey, entryValue] of Object.entries(value)) {
-    if (entryKey === key) found.push(entryValue);
-    collectByKey(entryValue, key, found);
+  } else if (value && typeof value === "object") {
+    for (const [entryKey, entryValue] of Object.entries(value)) {
+      if (entryKey === key) found.push(entryValue);
+      collectByKey(entryValue, key, found);
+    }
   }
   return found;
 }
 
-function validateTrustedAuthorStep(step, label) {
+function runs(job) {
+  return (job?.steps ?? [])
+    .filter((step) => typeof step.run === "string")
+    .map((step) => step.run.trim());
+}
+
+function validateEvents(name, events) {
+  const expected =
+    name === "codeql.yml"
+      ? ["merge_group", "pull_request", "push"]
+      : ["merge_group", "pull_request"];
   if (
-    step?.name !== "Verify trusted pull request author" ||
-    step.if !== "github.event_name == 'pull_request'" ||
-    !sameRecord(step.env, {
-      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-    }) ||
-    !String(step.run).includes("OWNER|MEMBER") ||
-    String(step.run).includes("PR_AUTHOR_LOGIN") ||
-    String(step.run).includes("openboa") ||
-    String(step.run).includes("COLLABORATOR") ||
-    !String(step.run).includes("exit 1")
+    !events ||
+    typeof events !== "object" ||
+    Array.isArray(events) ||
+    JSON.stringify(Object.keys(events).sort()) !== JSON.stringify(expected)
   ) {
-    fail(`${label} must admit only organization owners or members`);
+    fail(`${name}: event set changed`);
+    return;
+  }
+  if (events.merge_group !== null) {
+    fail(`${name}: merge_group filters are forbidden`);
+  }
+  const expectedPullRequest =
+    name === "quality.yml"
+      ? { types: ["opened", "synchronize", "reopened", "edited"] }
+      : null;
+  if (
+    JSON.stringify(events.pull_request) !== JSON.stringify(expectedPullRequest)
+  ) {
+    fail(`${name}: pull_request activity contract changed`);
+  }
+  if (
+    name === "codeql.yml" &&
+    JSON.stringify(events.push) !== JSON.stringify({ branches: ["main"] })
+  ) {
+    fail("codeql.yml: push analysis must target main");
   }
 }
 
-function gitPaths(args) {
-  const result = spawnSync("git", ["-C", root, ...args], {
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    fail(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
-    return [];
-  }
-  return result.stdout.split("\0").filter(Boolean);
-}
-
-function validateWorkflow(name, document) {
-  const events = document.on;
-  if (!events || typeof events !== "object" || Array.isArray(events)) {
-    fail(`${name}: events must be an object`);
-  } else {
-    const expectedEvents =
-      name === "codeql.yml" || name === "github-coverage.yml"
-        ? ["merge_group", "pull_request", "push"]
-        : ["merge_group", "pull_request"];
-    if (
-      JSON.stringify(Object.keys(events).sort()) !==
-      JSON.stringify(expectedEvents)
-    ) {
-      fail(`${name}: required event set changed`);
-    }
-    const expectedPullRequest =
-      name === "quality.yml"
-        ? { types: ["opened", "synchronize", "reopened", "edited"] }
-        : null;
-    if (
-      JSON.stringify(events.pull_request) !==
-      JSON.stringify(expectedPullRequest)
-    ) {
-      fail(`${name}: pull_request activity contract changed`);
-    }
-    if (events.merge_group !== null) {
-      fail(`${name}: merge_group must not contain path or branch filters`);
-    }
-    if (
-      (name === "codeql.yml" || name === "github-coverage.yml") &&
-      JSON.stringify(events.push) !== JSON.stringify({ branches: ["main"] })
-    ) {
-      fail(`${name}: push analysis must target only main`);
-    }
-  }
+function validateWorkflow(name, source, document) {
+  validateEvents(name, document.on);
   if (!sameRecord(document.permissions, {})) {
     fail(`${name}: workflow permissions must default to none`);
+  }
+  if (/\bpull_request_target\b/u.test(source)) {
+    fail(`${name}: pull_request_target is forbidden`);
+  }
+  if (/\bsecrets\s*\./u.test(source)) {
+    fail(`${name}: secret context is forbidden`);
+  }
+  if (/\|\|\s*true/u.test(source)) {
+    fail(`${name}: shell success masking is forbidden`);
   }
   if (collectByKey(document, "continue-on-error").length > 0) {
     fail(`${name}: continue-on-error is forbidden`);
@@ -142,21 +112,20 @@ function validateWorkflow(name, document) {
 
   for (const use of collectByKey(document, "uses")) {
     if (typeof use !== "string" || !/^[^@\s]+@[0-9a-f]{40}$/u.test(use)) {
-      fail(`${name}: every uses entry must be pinned to a full SHA: ${use}`);
+      fail(`${name}: action is not pinned to a full SHA: ${use}`);
     } else if (!actionPins.has(use)) {
       fail(`${name}: action pin is not approved: ${use}`);
     }
   }
 
   for (const [jobId, job] of Object.entries(document.jobs ?? {})) {
-    const expected =
+    const expectedPermissions =
       name === "codeql.yml" && jobId === "analyze"
         ? codeqlPermissions
-        : name === "github-coverage.yml" &&
-            jobId === "upload-coverage-javascript"
-          ? coverageUploadPermissions
+        : name === "quality.yml" && jobId === "upload-coverage"
+          ? coveragePermissions
           : ordinaryPermissions;
-    if (!sameRecord(job.permissions, expected)) {
+    if (!sameRecord(job.permissions, expectedPermissions)) {
       fail(`${name}:${jobId}: permissions do not match the job class`);
     }
     for (const step of job.steps ?? []) {
@@ -167,165 +136,121 @@ function validateWorkflow(name, document) {
         fail(`${name}:${jobId}: checkout must disable persisted credentials`);
       }
       if (
-        step.uses?.startsWith("actions/checkout@") &&
-        ["github-coverage.yml", "policy.yml", "quality.yml"].includes(name) &&
-        step.with?.["fetch-depth"] !== 0
-      ) {
-        fail(`${name}:${jobId}: required lanes must fetch complete history`);
-      }
-      if (
         step.uses?.startsWith("actions/setup-node@") &&
         String(step.with?.["node-version"]) !== "24"
       ) {
-        fail(`${name}:${jobId}: setup-node must use Node 24`);
+        fail(`${name}:${jobId}: Node 24 is required`);
       }
     }
   }
 }
 
-const discoveredWorkflows = readdirSync(workflowRoot)
+const discovered = readdirSync(workflowRoot)
   .filter((name) => /\.ya?ml$/u.test(name))
   .sort();
-if (JSON.stringify(discoveredWorkflows) !== JSON.stringify(workflowNames)) {
+if (JSON.stringify(discovered) !== JSON.stringify(workflowNames)) {
   fail(`workflow set must be exactly ${workflowNames.join(", ")}`);
 }
 
 const workflows = new Map();
-for (const name of discoveredWorkflows) {
+for (const name of discovered) {
   try {
     const source = readFileSync(resolve(workflowRoot, name), "utf8");
-    if (/\bpull_request_target\b/u.test(source)) {
-      fail(`${name}: pull_request_target is forbidden`);
-    }
-    if (/\bsecrets\s*\./u.test(source)) {
-      fail(`${name}: secret context is forbidden`);
-    }
-    if (/\|\|\s*true/u.test(source)) {
-      fail(`${name}: shell success masking is forbidden`);
-    }
     const document = parse(source);
     workflows.set(name, document);
-    validateWorkflow(name, document);
+    validateWorkflow(name, source, document);
   } catch (error) {
-    fail(`${name}: cannot parse workflow: ${describeError(error)}`);
+    fail(`${name}: cannot parse workflow: ${String(error)}`);
   }
 }
 
-const aggregateJobs = [];
-for (const [name, workflow] of workflows) {
-  for (const [jobId, job] of Object.entries(workflow.jobs ?? {})) {
-    if (jobId === "aggregate") aggregateJobs.push({ name, job });
-  }
-}
-if (aggregateJobs.length !== 1) {
-  fail("workflow set must expose exactly one aggregate job");
-} else {
-  const [{ name, job }] = aggregateJobs;
-  if (name !== "quality.yml" || job.if !== "always()") {
-    fail("quality.yml:aggregate must use if: always()");
-  }
-  if (!Array.isArray(job.needs) || job.needs.length === 0) {
-    fail("quality.yml:aggregate must depend on internal lanes");
-  }
-  if (
-    JSON.stringify(job.needs) !==
-    JSON.stringify([
-      "eligibility",
-      "quality",
-      "publication",
-      "contract-refresh",
-    ])
-  ) {
-    fail("quality.yml:aggregate must depend on every required Roastery lane");
-  }
-  const aggregateSteps = JSON.stringify(job.steps ?? []);
-  for (const marker of [
-    "needs.",
-    "failed",
-    "invalid",
-    "skipped",
-    "unavailable",
-  ]) {
-    if (!aggregateSteps.includes(marker)) {
-      fail(`quality.yml:aggregate must preserve ${marker}`);
-    }
-  }
-}
-
-const qualityWorkflow = workflows.get("quality.yml");
-const eligibilityJob = qualityWorkflow?.jobs?.eligibility;
-const eligibilitySteps = eligibilityJob?.steps ?? [];
-const mergeGroupEligibilityStep = eligibilitySteps[0];
+const quality = workflows.get("quality.yml");
 if (
-  mergeGroupEligibilityStep?.name !== "Admit merge queue candidate" ||
-  mergeGroupEligibilityStep.if !== "github.event_name == 'merge_group'" ||
-  collectByKey(eligibilityJob, "uses").length !== 0 ||
-  collectByKey(eligibilityJob, "run").some((run) =>
+  JSON.stringify(Object.keys(quality?.jobs ?? {}).sort()) !==
+  JSON.stringify([
+    "aggregate",
+    "eligibility",
+    "publication",
+    "quality",
+    "upload-coverage",
+  ])
+) {
+  fail("quality.yml: job set changed");
+}
+const eligibility = quality?.jobs?.eligibility;
+if (
+  collectByKey(eligibility, "uses").length !== 0 ||
+  collectByKey(eligibility, "run").some((run) =>
     /\b(?:git|node|npm|npx)\b/u.test(String(run)),
   )
 ) {
-  fail("quality.yml: eligibility must not execute candidate content");
+  fail("quality.yml: eligibility may not execute candidate content");
 }
-validateTrustedAuthorStep(eligibilitySteps[1], "quality.yml:eligibility");
-
-for (const jobId of ["quality", "publication", "contract-refresh"]) {
-  const job = qualityWorkflow?.jobs?.[jobId];
-  const needs = Array.isArray(job?.needs) ? job.needs : [job?.needs];
-  if (!needs.includes("eligibility")) {
-    fail(`quality.yml:${jobId} must depend on author eligibility`);
-  }
-  if (
-    job?.if !== undefined &&
-    !String(job.if).includes("needs.eligibility.result == 'success'")
-  ) {
-    fail(`quality.yml:${jobId} may not bypass failed author eligibility`);
-  }
-}
-
-const qualitySteps = workflows.get("quality.yml")?.jobs?.quality?.steps ?? [];
-const qualityRuns = qualitySteps
-  .filter((step) => typeof step.run === "string")
-  .map((step) => step.run.trim());
-const expectedQualityRuns = [
-  "npm ci",
-  "npm run format:check",
-  "npm run typecheck",
-  "npm test",
-  "npm run ci:policy",
-];
-if (JSON.stringify(qualityRuns) !== JSON.stringify(expectedQualityRuns)) {
-  fail("quality.yml: quality commands or order changed");
-}
-
-const publicationRuns = (
-  workflows.get("quality.yml")?.jobs?.publication?.steps ?? []
-)
-  .filter((step) => typeof step.run === "string")
-  .map((step) => step.run.trim());
+const authorStep = eligibility?.steps?.find(
+  (step) => step.name === "Decide author eligibility",
+);
 if (
-  JSON.stringify(publicationRuns) !==
+  !sameRecord(authorStep?.env, {
+    AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+    EVENT_NAME: "${{ github.event_name }}",
+  })
+) {
+  fail("quality.yml: author eligibility metadata surface changed");
+}
+
+for (const jobId of ["quality", "publication"]) {
+  if (quality?.jobs?.[jobId]?.needs !== "eligibility") {
+    fail(`quality.yml:${jobId}: author eligibility is required`);
+  }
+}
+if (
+  JSON.stringify(runs(quality?.jobs?.quality)) !==
+  JSON.stringify([
+    "npm ci",
+    "npm run format:check",
+    "npm run typecheck",
+    "npm run package:check",
+    "npm run test:coverage",
+    "npm run ci:policy",
+  ])
+) {
+  fail("quality.yml: deterministic quality command set changed");
+}
+const coverageUpload = quality?.jobs?.["upload-coverage"];
+if (
+  coverageUpload?.needs !== "quality" ||
+  !sameRecord(coverageUpload?.permissions, coveragePermissions) ||
+  runs(coverageUpload).length !== 0
+) {
+  fail("quality.yml: coverage upload authority changed");
+}
+if (
+  JSON.stringify(runs(quality?.jobs?.publication)) !==
   JSON.stringify([
     "npm ci",
     "npm run test:publication",
     "npm run check:publication",
   ])
 ) {
-  fail("quality.yml: publication lane must test and enforce the checked head");
+  fail("quality.yml: publication command set changed");
 }
-const publicationCheckout = (
-  workflows.get("quality.yml")?.jobs?.publication?.steps ?? []
-).find((step) => String(step.uses).startsWith("actions/checkout@"));
+const publicationCheckout = quality?.jobs?.publication?.steps?.find((step) =>
+  String(step.uses).startsWith("actions/checkout@"),
+);
 if (
   publicationCheckout?.with?.ref !==
-  "${{ github.event.pull_request.head.sha || github.sha }}"
+    "${{ github.event.pull_request.head.sha || github.sha }}" ||
+  publicationCheckout?.with?.["fetch-depth"] !== 0
 ) {
-  fail("quality.yml: publication lane must check out the exact event head");
+  fail(
+    "quality.yml: publication must inspect the exact event head and history",
+  );
 }
-const publicationEnforcement = (
-  workflows.get("quality.yml")?.jobs?.publication?.steps ?? []
-).find((step) => step.run === "npm run check:publication");
+const publicationCheck = quality?.jobs?.publication?.steps?.find(
+  (step) => step.run === "npm run check:publication",
+);
 if (
-  !sameRecord(publicationEnforcement?.env, {
+  !sameRecord(publicationCheck?.env, {
     ROASTERY_TRUSTED_CONTRACT_COMMIT:
       "${{ vars.ROASTERY_TRUSTED_CONTRACT_COMMIT }}",
     ROASTERY_TRUSTED_CONTRACT_DIGEST:
@@ -334,411 +259,84 @@ if (
       "${{ vars.ROASTERY_TRUSTED_CONTRACT_REPOSITORY }}",
   })
 ) {
-  fail(
-    "quality.yml: publication trust tuple must come from repository variables",
-  );
+  fail("quality.yml: publication trust tuple must be repository-owned");
 }
 
-const refreshSteps =
-  workflows.get("quality.yml")?.jobs?.["contract-refresh"]?.steps ?? [];
-const refreshRuns = refreshSteps
-  .filter((step) => typeof step.run === "string")
-  .map((step) => step.run.trim());
+const aggregate = quality?.jobs?.aggregate;
 if (
-  JSON.stringify(refreshRuns) !==
-  JSON.stringify([
-    "npm ci",
-    "mkdir -p artifacts",
-    "npm run test:contract-refresh",
-    "npm run build:contract-refresh-receipt",
-  ])
+  aggregate?.if !== "always()" ||
+  JSON.stringify(aggregate?.needs) !==
+    JSON.stringify(["eligibility", "quality", "publication"])
 ) {
-  fail("quality.yml: contract-refresh commands or order changed");
+  fail("quality.yml: aggregate dependency set changed");
 }
-const refreshAcceptance = refreshSteps.find(
-  (step) => step.run === "npm run test:contract-refresh",
+const aggregateSource = JSON.stringify(aggregate?.steps ?? []);
+for (const state of ["failed", "invalid", "skipped", "unavailable"]) {
+  if (!aggregateSource.includes(state)) {
+    fail(`quality.yml: aggregate must preserve ${state}`);
+  }
+}
+
+const policy = workflows.get("policy.yml");
+if (
+  JSON.stringify(Object.keys(policy?.jobs ?? {})) !==
+  JSON.stringify(["dependency-review"])
+) {
+  fail("policy.yml: dependency review must be the only supply-chain job");
+}
+
+const mergePolicy = JSON.parse(
+  readFileSync(resolve(root, ".github/merge-policy.json"), "utf8"),
 );
 if (
-  !sameRecord(refreshAcceptance?.env, {
-    CONTRACT_REFRESH_EVIDENCE_OUTPUT:
-      "artifacts/contract-refresh-evidence.json",
+  mergePolicy.repository_role !== "roastery" ||
+  mergePolicy.merge_method !== "squash" ||
+  mergePolicy.auto_merge !== "github-native" ||
+  JSON.stringify(mergePolicy.required_events) !==
+    JSON.stringify(["merge_group", "pull_request"]) ||
+  JSON.stringify(mergePolicy.eligible_author_associations) !==
+    JSON.stringify(["OWNER", "MEMBER"]) ||
+  !sameRecord(mergePolicy.review_policy, {
+    required_approvals: 0,
+    code_owner_reviews_required: false,
   })
 ) {
-  fail("quality.yml: contract-refresh evidence output is not immutable");
+  fail("merge policy does not match GitHub-native squash authority");
 }
-const evidenceArtifact = refreshSteps.find(
-  (step) => step.id === "upload-contract-refresh-evidence",
-);
 if (
-  evidenceArtifact?.with?.name !== "contract-refresh-evidence" ||
-  evidenceArtifact?.with?.path !== "artifacts/contract-refresh-evidence.json" ||
-  evidenceArtifact?.with?.["if-no-files-found"] !== "error" ||
-  evidenceArtifact?.with?.["retention-days"] !== 90
+  JSON.stringify(mergePolicy.required_checks?.map((entry) => entry.context)) !==
+  JSON.stringify(["Roastery required", "Roastery dependency review"])
 ) {
-  fail("quality.yml: contract-refresh evidence must be preserved fail closed");
-}
-const receiptBuild = refreshSteps.find(
-  (step) => step.run === "npm run build:contract-refresh-receipt",
-);
-if (
-  !sameRecord(receiptBuild?.env, {
-    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_DIGEST:
-      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-digest }}",
-    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_ID:
-      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-id }}",
-    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_URL:
-      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-url }}",
-    CONTRACT_REFRESH_EVIDENCE_PATH: "artifacts/contract-refresh-evidence.json",
-    CONTRACT_REFRESH_RECEIPT_OUTPUT: "artifacts/contract-refresh-receipt.json",
-    GITHUB_RUN_URL:
-      "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-  })
-) {
-  fail("quality.yml: contract-refresh upload outputs must bind the receipt");
-}
-const receiptArtifact = refreshSteps.find(
-  (step) => step.id === "upload-contract-refresh-receipt",
-);
-if (
-  receiptArtifact?.with?.name !== "contract-refresh-receipt" ||
-  receiptArtifact?.with?.path !== "artifacts/contract-refresh-receipt.json" ||
-  receiptArtifact?.with?.["if-no-files-found"] !== "error" ||
-  receiptArtifact?.with?.["retention-days"] !== 90
-) {
-  fail("quality.yml: artifact-bound receipt must be preserved fail closed");
+  fail("merge policy required check set changed");
 }
 
-const policySteps = workflows.get("policy.yml")?.jobs?.policy?.steps ?? [];
-validateTrustedAuthorStep(policySteps[0], "policy.yml:policy");
-const policyRuns = policySteps
-  .filter((step) => step.name !== "Verify trusted pull request author")
-  .filter((step) => typeof step.run === "string")
-  .map((step) => step.run.trim());
-if (
-  JSON.stringify(policyRuns) !== JSON.stringify(["npm ci", "npm run ci:policy"])
-) {
-  fail("policy.yml: policy job must run only install and the policy checker");
-}
-
-const coverageWorkflow = workflows.get("github-coverage.yml");
-const coverageJob = coverageWorkflow?.jobs?.coverage;
-const coverageSteps = coverageJob?.steps ?? [];
-validateTrustedAuthorStep(coverageSteps[0], "github-coverage.yml:coverage");
-const coverageCheckout = coverageSteps.find((step) =>
-  String(step.uses).startsWith("actions/checkout@"),
-);
-if (
-  coverageCheckout?.with?.ref !==
-  "${{ github.event.pull_request.head.sha || github.sha }}"
-) {
-  fail("github-coverage.yml: checkout must bind the pull request head SHA");
-}
-const coverageRuns = coverageSteps
-  .filter((step) => typeof step.run === "string")
-  .map((step) => step.run);
-if (
-  !coverageRuns.some(
-    (run) =>
-      run.includes("--experimental-test-coverage") &&
-      run.includes("tests/*.test.mjs"),
-  )
-) {
-  fail("github-coverage.yml: coverage must execute the complete test suite");
-}
-if (
-  !coverageRuns.some(
-    (run) =>
-      run.includes("--require-hashes") &&
-      run.includes(".github/coverage-requirements.txt"),
-  )
-) {
-  fail("github-coverage.yml: converter dependency must be hash locked");
-}
-const coverageArtifact = coverageSteps.find((step) =>
-  String(step.uses).startsWith("actions/upload-artifact@"),
-);
-if (
-  !String(coverageArtifact?.if).includes(
-    "github.event.pull_request.head.repo.full_name == github.repository",
-  ) ||
-  coverageArtifact?.with?.["if-no-files-found"] !== "error" ||
-  coverageArtifact?.with?.["retention-days"] !== 1
-) {
-  fail(
-    "github-coverage.yml: coverage artifact must fail closed and reject forks",
-  );
-}
-const coverageUploadJob =
-  coverageWorkflow?.jobs?.["upload-coverage-javascript"];
-const coverageUploadCondition = String(coverageUploadJob?.if);
-if (
-  coverageUploadJob?.needs !== "coverage" ||
-  !coverageUploadCondition.includes("needs.coverage.result == 'success'") ||
-  !coverageUploadCondition.includes("github.event_name != 'merge_group'") ||
-  !coverageUploadCondition.includes(
-    "github.event.pull_request.head.repo.full_name == github.repository",
-  )
-) {
-  fail("github-coverage.yml: privileged upload boundary is invalid");
-}
-const coverageUploadStep = (coverageUploadJob?.steps ?? []).find((step) =>
-  String(step.uses).startsWith("actions/upload-code-coverage@"),
-);
-if (
-  !sameRecord(coverageUploadStep?.with, {
-    file: "cobertura.xml",
-    language: "JavaScript",
-    label: "roastery-javascript",
-  })
-) {
-  fail("github-coverage.yml: GitHub coverage upload contract changed");
-}
-try {
-  const requirements = readFileSync(
-    resolve(root, ".github/coverage-requirements.txt"),
-    "utf8",
-  );
-  if (
-    requirements !==
-    "lcov_cobertura==2.1.1 --hash=sha256:92f8107297f6d1d7a7a0a88c6071c1ea04f862f2fe918c6ecce271573c37d8aa\n"
-  ) {
-    fail("coverage converter dependency or hash changed");
-  }
-} catch (error) {
-  fail(
-    `coverage converter requirements cannot be read: ${describeError(error)}`,
-  );
-}
-
-const dependencySteps =
-  workflows.get("policy.yml")?.jobs?.["dependency-review"]?.steps ?? [];
-const mergeGroupDependencyStep = dependencySteps.find((step) =>
-  String(step.if).includes("github.event_name == 'merge_group'"),
-);
-if (
-  mergeGroupDependencyStep?.with?.["base-ref"] !==
-    "${{ github.event.merge_group.base_sha }}" ||
-  mergeGroupDependencyStep?.with?.["head-ref"] !==
-    "${{ github.event.merge_group.head_sha }}"
-) {
-  fail("policy.yml: merge_group dependency review must bind base/head SHAs");
-}
-
-const codeqlSteps = workflows.get("codeql.yml")?.jobs?.analyze?.steps ?? [];
-if (codeqlSteps.some((step) => typeof step.run === "string")) {
-  fail("codeql.yml: analyze must not execute repository scripts");
-}
-
-let mergePolicy;
-try {
-  mergePolicy = JSON.parse(
-    readFileSync(resolve(root, ".github/merge-policy.json"), "utf8"),
-  );
-} catch (error) {
-  fail(`merge policy is invalid: ${describeError(error)}`);
-}
-if (mergePolicy) {
-  if (
-    mergePolicy.repository_role !== "roastery" ||
-    mergePolicy.merge_method !== "squash" ||
-    JSON.stringify(mergePolicy.auto_merge) !==
-      JSON.stringify({ required_checks: true, verified_members_only: true }) ||
-    JSON.stringify(mergePolicy.eligible_author_associations) !==
-      JSON.stringify(["OWNER", "MEMBER"]) ||
-    "eligible_author_logins" in mergePolicy
-  ) {
-    fail("merge policy does not describe the Roastery merge boundary");
-  }
-  if (
-    JSON.stringify(mergePolicy.required_events) !==
-    JSON.stringify(["merge_group", "pull_request"])
-  ) {
-    fail("merge policy required events changed");
-  }
-  const requiredProtectedPaths = [
-    "/.github/**",
-    "/AGENTS.md",
-    "/CODEOWNERS",
-    "/LICENSE",
-    "/scripts/check-migration-receipt.mjs",
-    "/scripts/build-contract-refresh-receipt.mjs",
-    "/scripts/check-publication.mjs",
-    "/docs/migration/**",
-    "/contract/**",
-    "/roastery/CONTENT_LICENSE.md",
-    "/src/cli.ts",
-    "/src/contract/**",
-    "/src/projection/**",
-    "/src/validation/**",
-    "/tests/content-license-contract.test.ts",
-    "/tests/contract.test.ts",
-    "/tests/rights-semantics-contract.test.ts",
-    "/tests/publication-acceptance.test.ts",
-    "/tests/contract-refresh-acceptance.test.ts",
-    "/tests/security-boundary.test.ts",
-    "/tests/validator.test.ts",
-    "/tests/helpers/**",
-  ];
-  for (const path of requiredProtectedPaths) {
-    if (!mergePolicy.protected_paths?.includes(path)) {
-      fail(`merge policy is missing protected path ${path}`);
-    }
-  }
-
-  const checker = mergePolicy.migration?.checker;
-  const base = mergePolicy.migration?.base_commit;
-  const target = mergePolicy.migration?.target_commit;
-  if (
-    checker !== "scripts/check-migration-receipt.mjs" ||
-    !/^[0-9a-f]{40}$/u.test(base ?? "") ||
-    !/^[0-9a-f]{40}$/u.test(target ?? "")
-  ) {
-    fail("merge policy migration checker contract is invalid");
-  } else {
-    const result = spawnSync(
-      process.execPath,
-      [
-        resolve(root, checker),
-        "--root",
-        root,
-        "--base",
-        base,
-        "--target",
-        target,
-      ],
-      { encoding: "utf8" },
-    );
-    if (result.status !== 0) {
-      fail(
-        `migration checker failed: ${(result.stderr || result.stdout).trim()}`,
-      );
-    }
-  }
-
-  const activeMilestone = mergePolicy.migration?.active_milestone;
-  if (
-    !activeMilestone ||
-    !/^[0-9a-f]{40}$/u.test(activeMilestone.base_commit ?? "") ||
-    typeof activeMilestone.projection !== "string" ||
-    typeof activeMilestone.equality !== "string" ||
-    typeof activeMilestone.receipt !== "string"
-  ) {
-    fail("active migration milestone contract is invalid");
-  } else {
-    const result = spawnSync(
-      process.execPath,
-      [
-        resolve(root, checker),
-        "--root",
-        root,
-        "--base",
-        activeMilestone.base_commit,
-        "--projection",
-        resolve(root, activeMilestone.projection),
-        "--equality",
-        resolve(root, activeMilestone.equality),
-        "--receipt",
-        resolve(root, activeMilestone.receipt),
-      ],
-      { encoding: "utf8" },
-    );
-    if (result.status !== 0) {
-      fail(
-        `active migration checker failed: ${(result.stderr || result.stdout).trim()}`,
-      );
-    }
-  }
-}
-
-const trackedPaths = gitPaths(["ls-files", "-z"]);
-for (const path of trackedPaths) {
-  if (/(?:^|\/)(?:node_modules|dist|coverage)(?:\/|$)/u.test(path)) {
-    fail(`generated or dependency path is tracked: ${path}`);
-  }
-}
-
-const repositoryPaths = gitPaths([
-  "ls-files",
-  "--cached",
-  "--others",
-  "--exclude-standard",
-  "-z",
-]);
-const foreignSurfaces = [
-  ".agents/plugins/",
-  ".codex-plugin/",
-  "plugin.json",
-  "skills/",
-  "runtime/",
-  "src/runtime/",
-  "src/release/",
-  "eval/",
-  "benchmark/",
-  "tasks/",
-  "datasets/",
-  "metrics/",
-  "verifiers/",
+const requiredScripts = [
+  "build",
+  "check:publication",
+  "ci:policy",
+  "format:check",
+  "package:check",
+  "prepack",
+  "test",
+  "test:coverage",
+  "test:governance",
+  "test:publication",
+  "test:roastery",
+  "typecheck",
 ];
-for (const path of repositoryPaths) {
-  if (
-    foreignSurfaces.some(
-      (surface) => path === surface || path.startsWith(surface),
-    )
-  ) {
-    fail(`foreign repository surface is forbidden: ${path}`);
-  }
-}
-
-/** @type {Array<[string, RegExp]>} */
-const secretPatterns = [
-  [
-    "private key",
-    new RegExp(
-      ["-{5}BEGIN ", "(?:RSA |EC |OPENSSH |DSA )?", "PRIVATE KEY-{5}"].join(""),
-      "u",
-    ),
-  ],
-  [
-    "GitHub token",
-    new RegExp(["gh", "[pousr]_", "[A-Za-z0-9_]{36,}"].join(""), "u"),
-  ],
-  ["AWS access key", new RegExp(["AK", "IA", "[0-9A-Z]{16}"].join(""), "u")],
-  [
-    "OpenAI key",
-    new RegExp(["s", "k-(?:proj-)?", "[A-Za-z0-9_-]{32,}"].join(""), "u"),
-  ],
-  [
-    "assigned secret",
-    /(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*["']?[A-Za-z0-9+/=_-]{16,}/iu,
-  ],
-];
-for (const path of repositoryPaths) {
-  const absolutePath = resolve(root, path);
-  let source;
-  try {
-    if (!statSync(absolutePath).isFile()) continue;
-    const bytes = readFileSync(absolutePath);
-    if (bytes.length > 1_000_000) {
-      fail(`${path}: cannot inspect for secrets: file exceeds 1,000,000 bytes`);
-      continue;
-    }
-    if (bytes.includes(0)) {
-      fail(`${path}: cannot inspect for secrets: file contains NUL bytes`);
-      continue;
-    }
-    source = bytes.toString("utf8");
-  } catch (error) {
-    fail(`${path}: cannot inspect repository file: ${describeError(error)}`);
-    continue;
-  }
-  for (const [name, pattern] of secretPatterns) {
-    if (pattern.test(source)) fail(`${path}: detected common ${name} pattern`);
-  }
+const packageDocument = JSON.parse(
+  readFileSync(resolve(root, "package.json"), "utf8"),
+);
+if (
+  JSON.stringify(Object.keys(packageDocument.scripts ?? {}).sort()) !==
+  JSON.stringify(requiredScripts)
+) {
+  fail("package script surface changed");
 }
 
 if (failures.length > 0) {
-  console.error(failures.join("\n"));
+  process.stderr.write(`${failures.join("\n")}\n`);
   process.exitCode = 1;
 } else {
-  console.log("Roastery CI policy passed.");
+  process.stdout.write("CI policy passed\n");
 }

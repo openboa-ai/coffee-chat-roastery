@@ -16,7 +16,7 @@
 - Cross-repository impact:
 - Risk class: <!-- ordinary | protected -->
 - Agent-assisted: <!-- yes | no -->
-- Migration or provenance consequence:
+- Contract or publication consequence:
 
 ## Verification
 

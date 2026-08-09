@@ -8,7 +8,8 @@
       "const": "roastery/beans/**"
     },
     "license": {
-      "const": "CC-BY-4.0"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]*$"
     },
     "attribution": {
       "type": "string",

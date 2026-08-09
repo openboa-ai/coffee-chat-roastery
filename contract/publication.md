@@ -1,12 +1,13 @@
 # Standard Roastery Publication Contract
 
-Every owner publication uses a branch, pull request, protected checks, and a
-squash merge. Ordinary publication may change one Bean and the deterministic
-index only. License, contract, validator, workflow, and security surfaces are
-protected and require the owner's review of the exact head.
+Every owner publication uses a branch, pull request, required checks, and a
+GitHub-native squash merge. Human approval is not a merge condition. Ordinary
+publication changes exactly one Bean and the deterministic index; contract,
+license, validator, workflow, and security surfaces remain protected by focused
+automated checks.
 
-The publisher confirms this exact attestation for the proposed Bean bytes,
-change-set digest, and head:
+The publisher explicitly accepts this attestation for the proposed Bean bytes,
+change-set digest, and pull-request head:
 
 > I attest that this Bean contains no embedded third-party material requiring
 > attribution or prior-modification notices beyond the current Standard Roastery
@@ -14,22 +15,22 @@ change-set digest, and head:
 > are references outside this Bean license.
 
 A failed technical check or rejected attestation prevents publication. A passing
-receipt records only those checks and the explicit attestation; it does not
+result records only the technical checks and explicit attestation; it does not
 certify identity, ownership, truth, safety, legal sufficiency, quality, or
 endorsement.
 
 ## Ordinary Bean publication evidence
 
-The publication check executes against the exact pull-request base and head
-commits from the GitHub event. The checked-out commit must equal that head and
-the tracked worktree must be clean. An ordinary publication changes exactly one
-`roastery/beans/<uuidv7>.md` file and `roastery/index.json`; any other changed
-path is rejected.
+The publication check inspects exact Git objects from the GitHub event. The
+checked-out commit must equal the event head and the tracked worktree must be
+clean. An ordinary publication changes exactly one `roastery/beans/<uuidv7>.md`
+file and `roastery/index.json`; any other changed path is rejected.
 
-Repository validation is authorized by a trusted contract repository, commit,
-and digest supplied outside the candidate Roastery. The tuple must match the
-Roastery manifest and the checked contract bundle. A repository cannot replace
-both its local manifest and bundle to authorize itself.
+Repository validation receives the supported contract repository, commit, and
+digest from repository-owned CI variables. The tuple must match
+`roastery/roastery.json` and the canonical manifest inventory, including the
+schema, parser, renderer, projection, validator, shared-type, and digest
+authority executed by the check.
 
 The pull-request body contains exactly one closed machine-readable block:
 
@@ -40,14 +41,13 @@ The pull-request body contains exactly one closed machine-readable block:
 ```
 
 `bean_digest` is SHA-256 over the exact Bean blob. For `change_set_digest`,
-changed paths are sorted by their UTF-8 bytes. Each entry is framed as a
-four-byte unsigned big-endian path length, path bytes, an eight-byte unsigned
-big-endian content length, and exact head-commit blob bytes. SHA-256 is
-calculated over the concatenated frames. The marker's head, Bean path, Bean
-digest, and change-set digest must all match the inspected Git objects.
+changed paths are sorted by UTF-8 bytes. Each entry is framed as a four-byte
+unsigned big-endian path length, path bytes, an eight-byte unsigned big-endian
+content length, and exact head-commit blob bytes. SHA-256 is calculated over the
+concatenated frames. Every bound value must match the inspected Git object.
 
-GitHub `merge_group` events do not carry the originating pull-request body.
-Until an independently trusted attestation lookup is implemented, a merge group
-containing a Bean publication fails explicitly as
-`publication_attestation_unavailable`; it is never treated as accepted. A change
-with no `roastery/**` path is reported as `not_applicable`.
+A pull-request check validates the attestation and exact proposed head. A
+single-entry merge group revalidates the resulting repository bytes, contract
+tuple, changed-path shape, and deterministic index; it cannot replace the
+already-required pull-request attestation. A change with no `roastery/**` path
+is explicitly `not_applicable`.

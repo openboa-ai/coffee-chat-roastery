@@ -1,11 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { projectIndex, projectIndexBytes } from "../projection/index.ts";
+import { projectIndex } from "../projection/index.ts";
+import type { RoasteryIndex } from "../contract/types.ts";
+import type { StructuralValidator } from "./bean.ts";
 import { requireNoFollowPath } from "./filesystem.ts";
 
 export type IndexValidationResult =
-  { status: "valid" } | { status: "invalid"; reason: string };
+  | { status: "valid"; index: RoasteryIndex }
+  | { status: "invalid"; reason: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -13,6 +16,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export async function validateCommittedIndex(
   root: string,
+  validateIndexStructure?: StructuralValidator,
+  validateBeanStructure?: StructuralValidator,
 ): Promise<IndexValidationResult> {
   let indexState;
   try {
@@ -41,6 +46,9 @@ export async function validateCommittedIndex(
   } catch {
     return { status: "invalid", reason: "invalid_index" };
   }
+  if (validateIndexStructure !== undefined && !validateIndexStructure(parsed)) {
+    return { status: "invalid", reason: "invalid_index" };
+  }
   if (
     !isRecord(parsed) ||
     Object.keys(parsed).length !== 1 ||
@@ -48,10 +56,19 @@ export async function validateCommittedIndex(
   ) {
     return { status: "invalid", reason: "invalid_index" };
   }
+  const ids = parsed.beans.map((entry) =>
+    isRecord(entry) && typeof entry.id === "string" ? entry.id : null,
+  );
+  if (
+    ids.every((id): id is string => id !== null) &&
+    new Set(ids).size !== ids.length
+  ) {
+    return { status: "invalid", reason: "duplicate_bean_id" };
+  }
 
   let projected;
   try {
-    projected = await projectIndex(root);
+    projected = await projectIndex(root, validateBeanStructure);
   } catch (error) {
     return {
       status: "invalid",
@@ -78,8 +95,9 @@ export async function validateCommittedIndex(
       return { status: "invalid", reason: "index_digest_mismatch" };
     }
   }
-  if (source !== (await projectIndexBytes(root))) {
+  const canonicalSource = `${JSON.stringify(projected, null, 2)}\n`;
+  if (source !== canonicalSource) {
     return { status: "invalid", reason: "index_not_canonical" };
   }
-  return { status: "valid" };
+  return { status: "valid", index: projected };
 }

@@ -3,10 +3,16 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { IndexEntry, RoasteryIndex } from "../contract/types.ts";
-import { validateBeanFile } from "../validation/bean.ts";
+import {
+  validateBeanFile,
+  type StructuralValidator,
+} from "../validation/bean.ts";
 import { requireNoFollowPath } from "../validation/filesystem.ts";
 
-export async function projectIndex(root: string): Promise<RoasteryIndex> {
+export async function projectIndex(
+  root: string,
+  validateBeanStructure?: StructuralValidator,
+): Promise<RoasteryIndex> {
   const beansRoot = join(root, "roastery", "beans");
   await requireNoFollowPath(root, "roastery", "directory");
   const beansState = await requireNoFollowPath(
@@ -36,7 +42,11 @@ export async function projectIndex(root: string): Promise<RoasteryIndex> {
     }
     const relativePath = `roastery/beans/${entry.name}`;
     const bytes = await readFile(join(beansRoot, entry.name));
-    const validation = validateBeanFile(relativePath, bytes);
+    const validation = validateBeanFile(
+      relativePath,
+      bytes,
+      validateBeanStructure,
+    );
     if (validation.status === "invalid") {
       throw new Error(`${validation.reason}: ${relativePath}`);
     }
@@ -51,6 +61,13 @@ export async function projectIndex(root: string): Promise<RoasteryIndex> {
   return { beans };
 }
 
-export async function projectIndexBytes(root: string): Promise<string> {
-  return `${JSON.stringify(await projectIndex(root), null, 2)}\n`;
+export async function projectIndexBytes(
+  root: string,
+  validateBeanStructure?: StructuralValidator,
+): Promise<string> {
+  return `${JSON.stringify(
+    await projectIndex(root, validateBeanStructure),
+    null,
+    2,
+  )}\n`;
 }

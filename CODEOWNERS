@@ -1,4 +1,4 @@
-# No wildcard owner: ordinary paths may become eligible for strong-CI auto-merge.
+# Ownership routing only; repository rules require zero human approvals.
 /.github/** @openboa
 /AGENTS.md @openboa
 /CODEOWNERS @openboa
@@ -7,21 +7,12 @@
 /package.json @openboa
 /package-lock.json @openboa
 /tsconfig.json @openboa
-/scripts/check-migration-receipt.mjs @openboa
-/scripts/build-contract-refresh-receipt.mjs @openboa
-/scripts/check-publication.mjs @openboa
-/docs/migration/** @openboa
+/scripts/** @openboa
 /contract/** @openboa
 /roastery/CONTENT_LICENSE.md @openboa
 /src/cli.ts @openboa
 /src/contract/** @openboa
+/src/index.ts @openboa
 /src/projection/** @openboa
 /src/validation/** @openboa
-/tests/content-license-contract.test.ts @openboa
-/tests/contract.test.ts @openboa
-/tests/rights-semantics-contract.test.ts @openboa
-/tests/publication-acceptance.test.ts @openboa
-/tests/contract-refresh-acceptance.test.ts @openboa
-/tests/security-boundary.test.ts @openboa
-/tests/validator.test.ts @openboa
-/tests/helpers/** @openboa
+/tests/** @openboa

@@ -45,6 +45,12 @@ describe("Bean and index contract", () => {
 
   test.each([
     {
+      name: "out-of-range HTTPS port",
+      path: `roastery/beans/${firstId}.md`,
+      bytes: `---\nid: ${firstId}\norigins:\n  - https://example.com:65536/source\n---\nBody.\n`,
+      reason: "invalid_origin",
+    },
+    {
       name: "path and frontmatter ID mismatch",
       path: `roastery/beans/${firstId}.md`,
       bytes: `---\nid: ${secondId}\n---\nBody.\n`,
@@ -92,6 +98,15 @@ describe("Bean and index contract", () => {
       status: "invalid",
       reason,
     });
+  });
+
+  test("accepts the maximum HTTPS port through the real URL parser", async () => {
+    const bytes = `---\nid: ${firstId}\norigins:\n  - https://example.com:65535/source\n---\nBody.\n`;
+    const { validateBeanFile } = await import("../src/validation/bean.js");
+
+    expect(
+      validateBeanFile(`roastery/beans/${firstId}.md`, Buffer.from(bytes)),
+    ).toMatchObject({ status: "valid" });
   });
 
   test("projects exact deterministic index bytes in monotonic lexical order", async () => {
@@ -154,7 +169,35 @@ describe("Roastery repository contract", () => {
     ).toMatchObject({ status: "invalid", reason: "invalid_contract_pin" });
   });
 
-  test("fails closed when the committed index omits, duplicates, or mis-digests a Bean", async () => {
+  test.each([
+    ["https://github.com/a/r", "valid"],
+    [`https://github.com/${"a".repeat(39)}/repository-name`, "valid"],
+    ["https://github.com/owner-/repository", "invalid"],
+    ["https://github.com/-owner/repository", "invalid"],
+    ["https://github.com/Owner/repository", "invalid"],
+    ["https://github.com/owner/repository/", "invalid"],
+    ["https://github.com/owner/repository.git", "invalid"],
+    ["https://github.com/owner/repository?tab=readme", "invalid"],
+    ["https://github.com:443/owner/repository", "invalid"],
+  ] as const)(
+    "classifies canonical repository identity %s",
+    async (repository, status) => {
+      const { validateRoasteryManifest } =
+        await import("../src/validation/roastery.js");
+      const result = validateRoasteryManifest({
+        repository,
+        contract: {
+          repository: "https://github.com/openboa-ai/coffee-chat-roastery",
+          commit: "1".repeat(40),
+          digest: `sha256:${"2".repeat(64)}`,
+        },
+      });
+
+      expect(result.status).toBe(status);
+    },
+  );
+
+  test("fails closed when the committed index mis-digests a Bean", async () => {
     const root = temporaryRoastery();
     const beanBytes = `---\nid: ${firstId}\n---\nBody.\n`;
     writeFileSync(join(root, "roastery", "beans", `${firstId}.md`), beanBytes);
@@ -179,6 +222,25 @@ describe("Roastery repository contract", () => {
     await expect(validateCommittedIndex(root)).resolves.toMatchObject({
       status: "invalid",
       reason: "index_digest_mismatch",
+    });
+  });
+
+  test("rejects duplicate Bean IDs in the committed index", async () => {
+    const root = temporaryRoastery();
+    const beanBytes = `---\nid: ${firstId}\n---\nBody.\n`;
+    const entry = { id: firstId, content_digest: digest(beanBytes) };
+    writeFileSync(join(root, "roastery", "beans", `${firstId}.md`), beanBytes);
+    writeFileSync(
+      join(root, "roastery", "index.json"),
+      `${JSON.stringify({ beans: [entry, entry] }, null, 2)}\n`,
+    );
+
+    const { validateCommittedIndex } =
+      await import("../src/validation/index.js");
+
+    await expect(validateCommittedIndex(root)).resolves.toMatchObject({
+      status: "invalid",
+      reason: "duplicate_bean_id",
     });
   });
 });

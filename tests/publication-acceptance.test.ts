@@ -4,6 +4,7 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -13,14 +14,8 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, test } from "vitest";
 
-import { fakeGithubReviews } from "./helpers/fake-github-review-boundary.js";
-
 const temporaryRoots: string[] = [];
 const repositoryRoot = resolve(import.meta.dirname, "..");
-const publicationCheckPath = resolve(
-  repositoryRoot,
-  "scripts/check-publication.mjs",
-);
 const beanId = "01890f3a-2b00-7000-8000-000000000001";
 
 interface PublicationFixture {
@@ -32,6 +27,7 @@ interface PublicationFixture {
   beanBytes: string;
   indexBytes: string;
   contractDigest: string;
+  publicationCheckPath: string;
 }
 
 function framedChangeSetDigest(
@@ -52,12 +48,46 @@ function framedChangeSetDigest(
   return `sha256:${hash.digest("hex")}`;
 }
 
-async function publicationFixture(): Promise<PublicationFixture> {
+function copyDeclaredBundle(destination: string): void {
+  const contract = JSON.parse(
+    readFileSync(resolve(repositoryRoot, "contract/contract.json"), "utf8"),
+  ) as { files: Record<string, string> };
+  for (const path of [
+    "contract/contract.json",
+    ...Object.values(contract.files),
+  ]) {
+    mkdirSync(resolve(destination, path, ".."), { recursive: true });
+    cpSync(resolve(repositoryRoot, path), resolve(destination, path));
+  }
+}
+
+async function publicationFixture(
+  restrictiveRoasterySchema = false,
+): Promise<PublicationFixture> {
   const root = mkdtempSync(join(tmpdir(), "roastery-publication-check-"));
   temporaryRoots.push(root);
-  cpSync(resolve(repositoryRoot, "contract"), join(root, "contract"), {
+  copyDeclaredBundle(root);
+  cpSync(resolve(repositoryRoot, "src"), join(root, "src"), {
     recursive: true,
   });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  cpSync(
+    resolve(repositoryRoot, "scripts/check-publication.mjs"),
+    join(root, "scripts/check-publication.mjs"),
+  );
+  symlinkSync(
+    resolve(repositoryRoot, "node_modules"),
+    join(root, "node_modules"),
+    "dir",
+  );
+  if (restrictiveRoasterySchema) {
+    const path = join(root, "contract/schemas/roastery.schema.json");
+    const schema = JSON.parse(readFileSync(path, "utf8"));
+    schema.properties.repository = {
+      const: "https://github.com/schema-owner/schema-roastery",
+    };
+    writeFileSync(path, `${JSON.stringify(schema, null, 2)}\n`);
+  }
   mkdirSync(join(root, "roastery", "beans"), { recursive: true });
   const { digestContractBundle } = await import("../src/contract/digest.js");
   const { renderContentLicense } =
@@ -124,6 +154,7 @@ async function publicationFixture(): Promise<PublicationFixture> {
     beanBytes,
     indexBytes,
     contractDigest,
+    publicationCheckPath: join(root, "scripts/check-publication.mjs"),
   };
 }
 
@@ -161,23 +192,33 @@ async function renamedPublicationFixture(): Promise<PublicationFixture> {
   return { ...fixture, baseSha, headSha, beanPath, beanBytes, indexBytes };
 }
 
-function runPublicationCheck(fixture: PublicationFixture, body: string) {
-  writeFileSync(
-    fixture.eventPath,
-    `${JSON.stringify({
-      pull_request: {
-        base: { sha: fixture.baseSha },
-        head: { sha: fixture.headSha },
-        body,
-      },
-    })}\n`,
-  );
-  return spawnSync(process.execPath, [publicationCheckPath], {
+function runPublicationCheck(
+  fixture: PublicationFixture,
+  body: string,
+  eventName: "pull_request" | "merge_group" = "pull_request",
+) {
+  const event =
+    eventName === "pull_request"
+      ? {
+          pull_request: {
+            base: { sha: fixture.baseSha },
+            head: { sha: fixture.headSha },
+            body,
+          },
+        }
+      : {
+          merge_group: {
+            base_sha: fixture.baseSha,
+            head_sha: fixture.headSha,
+          },
+        };
+  writeFileSync(fixture.eventPath, `${JSON.stringify(event)}\n`);
+  return spawnSync(process.execPath, [fixture.publicationCheckPath], {
     cwd: fixture.root,
     encoding: "utf8",
     env: {
       ...process.env,
-      GITHUB_EVENT_NAME: "pull_request",
+      GITHUB_EVENT_NAME: eventName,
       GITHUB_EVENT_PATH: fixture.eventPath,
       GITHUB_WORKSPACE: fixture.root,
       ROASTERY_TRUSTED_CONTRACT_REPOSITORY:
@@ -322,6 +363,28 @@ describe("Publication Contract", () => {
     });
   });
 
+  test("revalidates canonical publication bytes in a merge group", async () => {
+    const fixture = await publicationFixture();
+
+    const result = runPublicationCheck(fixture, "", "merge_group");
+
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "validated",
+      head_sha: fixture.headSha,
+      bean_path: fixture.beanPath,
+    });
+  });
+
+  test("applies the bundled structural schema to publication repository data", async () => {
+    const fixture = await publicationFixture(true);
+
+    const result = runPublicationCheck(fixture, "", "merge_group");
+
+    expect(result.status).not.toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected" });
+  });
+
   test("rejects a Bean rename even when Git detects identical content", async () => {
     const fixture = await renamedPublicationFixture();
     const beanDigest = `sha256:${createHash("sha256")
@@ -435,7 +498,7 @@ describe("Publication Contract", () => {
     const beanDigest = `sha256:${createHash("sha256").update(beanBytes).digest("hex")}`;
     const changeSetDigest = `sha256:${"2".repeat(64)}`;
     const { OWNER_PUBLICATION_ATTESTATION, validateBeanPublication } =
-      await import("../src/validation/repository.js");
+      await import("../src/validation/publication.js");
 
     expect(
       validateBeanPublication({
@@ -463,7 +526,7 @@ describe("Publication Contract", () => {
     const headSha = gitHead();
     const digest = `sha256:${"1".repeat(64)}`;
     const { OWNER_PUBLICATION_ATTESTATION, validateBeanPublication } =
-      await import("../src/validation/repository.js");
+      await import("../src/validation/publication.js");
     const base = {
       headSha,
       changedPaths: [
@@ -502,151 +565,5 @@ describe("Publication Contract", () => {
           "roastery/beans/01890f3a-2b00-7000-8000-000000000099.md",
       }),
     ).toEqual({ status: "rejected", reason: "attestation_binding_mismatch" });
-  });
-
-  test("allows only an exact-head owner-reviewed attribution correction that preserves prior grants", async () => {
-    const headSha = gitHead();
-    const { renderContentLicense } =
-      await import("../src/projection/content-license.js");
-    const { validateAttributionCorrection } =
-      await import("../src/validation/repository.js");
-    const beforeBytes = renderContentLicense({
-      scope: "roastery/beans/**",
-      license: "CC-BY-4.0",
-      attribution: "Owner One",
-    });
-    const afterBytes = renderContentLicense({
-      scope: "roastery/beans/**",
-      license: "CC-BY-4.0",
-      attribution: "Owner Two",
-    });
-    const reviews = fakeGithubReviews([
-      { reviewer: "fixture-owner", headSha, state: "approved" },
-    ]);
-
-    expect(
-      validateAttributionCorrection({
-        owner: "fixture-owner",
-        headSha,
-        changedPaths: ["roastery/CONTENT_LICENSE.md"],
-        reviews,
-        beforeBytes,
-        afterBytes,
-        priorGrantReceiptDigestsBefore: [`sha256:${"3".repeat(64)}`],
-        priorGrantReceiptDigestsAfter: [`sha256:${"3".repeat(64)}`],
-      }),
-    ).toEqual({
-      status: "accepted",
-      beforeAttribution: "Owner One",
-      afterAttribution: "Owner Two",
-    });
-  });
-
-  test.each([
-    { name: "missing owner review", reviews: [] },
-    {
-      name: "wrong owner review",
-      reviews: [
-        {
-          reviewer: "other-owner",
-          headSha: "HEAD",
-          state: "approved" as const,
-        },
-      ],
-    },
-    {
-      name: "stale head review",
-      reviews: [
-        {
-          reviewer: "fixture-owner",
-          headSha: "0".repeat(40),
-          state: "approved" as const,
-        },
-      ],
-    },
-  ])("rejects attribution correction with $name", async ({ reviews }) => {
-    const headSha = gitHead();
-    const { renderContentLicense } =
-      await import("../src/projection/content-license.js");
-    const { validateAttributionCorrection } =
-      await import("../src/validation/repository.js");
-    const normalizedReviews = fakeGithubReviews(
-      reviews.map((review) => ({
-        ...review,
-        headSha: review.headSha === "HEAD" ? headSha : review.headSha,
-      })),
-    );
-    const beforeBytes = renderContentLicense({
-      scope: "roastery/beans/**",
-      license: "CC-BY-4.0",
-      attribution: "Owner One",
-    });
-    const afterBytes = renderContentLicense({
-      scope: "roastery/beans/**",
-      license: "CC-BY-4.0",
-      attribution: "Owner Two",
-    });
-
-    expect(
-      validateAttributionCorrection({
-        owner: "fixture-owner",
-        headSha,
-        changedPaths: ["roastery/CONTENT_LICENSE.md"],
-        reviews: normalizedReviews,
-        beforeBytes,
-        afterBytes,
-        priorGrantReceiptDigestsBefore: [`sha256:${"3".repeat(64)}`],
-        priorGrantReceiptDigestsAfter: [`sha256:${"3".repeat(64)}`],
-      }),
-    ).toMatchObject({ status: "rejected", reason: "owner_review_required" });
-  });
-
-  test("rejects scope or license changes and revocation of an earlier receipt", async () => {
-    const headSha = gitHead();
-    const { renderContentLicense } =
-      await import("../src/projection/content-license.js");
-    const { validateAttributionCorrection } =
-      await import("../src/validation/repository.js");
-    const beforeBytes = renderContentLicense({
-      scope: "roastery/beans/**",
-      license: "CC-BY-4.0",
-      attribution: "Owner One",
-    });
-    const afterBytes = renderContentLicense({
-      scope: "roastery/beans/**",
-      license: "CC-BY-4.0",
-      attribution: "Owner Two",
-    });
-    const reviews = fakeGithubReviews([
-      { reviewer: "fixture-owner", headSha, state: "approved" },
-    ]);
-
-    expect(
-      validateAttributionCorrection({
-        owner: "fixture-owner",
-        headSha,
-        changedPaths: ["roastery/CONTENT_LICENSE.md"],
-        reviews,
-        beforeBytes,
-        afterBytes: afterBytes.replace(
-          "license: CC-BY-4.0",
-          "license: CC0-1.0",
-        ),
-        priorGrantReceiptDigestsBefore: [],
-        priorGrantReceiptDigestsAfter: [],
-      }),
-    ).toMatchObject({ status: "rejected", reason: "scope_or_license_change" });
-    expect(
-      validateAttributionCorrection({
-        owner: "fixture-owner",
-        headSha,
-        changedPaths: ["roastery/CONTENT_LICENSE.md"],
-        reviews,
-        beforeBytes,
-        afterBytes,
-        priorGrantReceiptDigestsBefore: [`sha256:${"3".repeat(64)}`],
-        priorGrantReceiptDigestsAfter: [],
-      }),
-    ).toMatchObject({ status: "rejected", reason: "prior_grant_revoked" });
   });
 });

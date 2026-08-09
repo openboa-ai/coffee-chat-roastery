@@ -18,21 +18,29 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Admit merge queue candidate
-        if: github.event_name == 'merge_group'
-        run: printf '%s\n' 'author=admitted_merge_queue_candidate'
-      - name: Verify trusted pull request author
-        if: github.event_name == 'pull_request'
+      - name: Decide author eligibility
         env:
+          EVENT_NAME: ${{ github.event_name }}
           AUTHOR_ASSOCIATION:
             ${{ github.event.pull_request.author_association }}
         run: |
-          case "$AUTHOR_ASSOCIATION" in
-            OWNER|MEMBER)
-              printf '%s\n' 'author=trusted_member'
+          case "$EVENT_NAME" in
+            merge_group)
+              printf '%s\n' 'author=admitted_merge_queue_candidate'
+              ;;
+            pull_request)
+              case "$AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER)
+                  printf '%s\n' 'author=trusted_member'
+                  ;;
+                *)
+                  printf '%s\n' 'author=untrusted' >&2
+                  exit 1
+                  ;;
+              esac
               ;;
             *)
-              printf '%s\n' 'author=untrusted' >&2
+              printf '%s\n' 'author=invalid_event' >&2
               exit 1
               ;;
           esac
@@ -47,7 +55,6 @@ jobs:
       - name: Check out repository without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
           persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -60,10 +67,45 @@ jobs:
         run: npm run format:check
       - name: Check types
         run: npm run typecheck
-      - name: Run deterministic tests
-        run: npm test
-      - name: Verify CI and migration policy
+      - name: Verify package and canonical bundle closure
+        run: npm run package:check
+      - name: Run deterministic tests with TypeScript coverage
+        run: npm run test:coverage
+      - name: Retain coverage for the native code-quality rule
+        if:
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: roastery-typescript-coverage
+          path: coverage/cobertura-coverage.xml
+          if-no-files-found: error
+          retention-days: 1
+      - name: Verify CI policy
         run: npm run ci:policy
+
+  upload-coverage:
+    name: Upload Roastery TypeScript coverage
+    needs: quality
+    if:
+      ${{ !cancelled() && needs.quality.result == 'success' && github.event_name
+      != 'merge_group' && (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      code-quality: write
+    steps:
+      - name: Download coverage evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: roastery-typescript-coverage
+      - name: Upload coverage to GitHub code quality
+        uses: actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1
+        with:
+          file: cobertura-coverage.xml
+          language: JavaScript
+          label: roastery-typescript
 
   publication:
     name: Roastery publication contract
@@ -97,63 +139,6 @@ jobs:
             ${{ vars.ROASTERY_TRUSTED_CONTRACT_DIGEST }}
         run: npm run check:publication
 
-  contract-refresh:
-    name: Roastery contract refresh
-    needs: eligibility
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Check out repository without persisted credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Prepare immutable receipt location
-        run: mkdir -p artifacts
-      - name: Run protected contract-refresh acceptance
-        env:
-          CONTRACT_REFRESH_EVIDENCE_OUTPUT: artifacts/contract-refresh-evidence.json
-        run: npm run test:contract-refresh
-      - name: Preserve contract-refresh evidence
-        id: upload-contract-refresh-evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: contract-refresh-evidence
-          path: artifacts/contract-refresh-evidence.json
-          if-no-files-found: error
-          retention-days: 90
-      - name: Bind evidence upload outputs into final receipt
-        env:
-          CONTRACT_REFRESH_EVIDENCE_ARTIFACT_DIGEST:
-            ${{ steps.upload-contract-refresh-evidence.outputs.artifact-digest
-            }}
-          CONTRACT_REFRESH_EVIDENCE_ARTIFACT_ID:
-            ${{ steps.upload-contract-refresh-evidence.outputs.artifact-id }}
-          CONTRACT_REFRESH_EVIDENCE_ARTIFACT_URL:
-            ${{ steps.upload-contract-refresh-evidence.outputs.artifact-url }}
-          CONTRACT_REFRESH_EVIDENCE_PATH: artifacts/contract-refresh-evidence.json
-          CONTRACT_REFRESH_RECEIPT_OUTPUT: artifacts/contract-refresh-receipt.json
-          GITHUB_RUN_URL:
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{
-            github.run_id }}
-        run: npm run build:contract-refresh-receipt
-      - name: Preserve artifact-bound contract-refresh receipt
-        id: upload-contract-refresh-receipt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: contract-refresh-receipt
-          path: artifacts/contract-refresh-receipt.json
-          if-no-files-found: error
-          retention-days: 90
-
   aggregate:
     name: Roastery required
     if: always()
@@ -161,23 +146,21 @@ jobs:
       - eligibility
       - quality
       - publication
-      - contract-refresh
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
       - name: Interpret required lane state
         env:
-          CONTRACT_REFRESH_RESULT: ${{ needs.contract-refresh.result }}
           ELIGIBILITY_RESULT: ${{ needs.eligibility.result }}
           PUBLICATION_RESULT: ${{ needs.publication.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
         run: |
+          decision=0
           for lane in \
             "eligibility:$ELIGIBILITY_RESULT" \
             "quality:$QUALITY_RESULT" \
-            "publication:$PUBLICATION_RESULT" \
-            "contract-refresh:$CONTRACT_REFRESH_RESULT"
+            "publication:$PUBLICATION_RESULT"
           do
             name=${lane%%:*}
             result=${lane#*:}
@@ -187,19 +170,20 @@ jobs:
                 ;;
               failure)
                 printf '%s=%s\n' "$name" 'failed' >&2
-                exit 1
+                decision=1
                 ;;
               skipped)
                 printf '%s=%s\n' "$name" 'skipped' >&2
-                exit 1
+                decision=1
                 ;;
               cancelled)
                 printf '%s=%s\n' "$name" 'unavailable' >&2
-                exit 1
+                decision=1
                 ;;
               *)
                 printf '%s=%s\n' "$name" 'invalid' >&2
-                exit 1
+                decision=1
                 ;;
             esac
           done
+          exit "$decision"

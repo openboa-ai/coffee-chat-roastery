@@ -1,81 +1,82 @@
 # Roastery Quality Map
 
-## Objective: Canonical protected Roastery contract
+## Objective: Canonical Roastery contract and repository validation
 
-| Field                 | Entry                                                                                                                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Objective             | Publish a deterministic, Bean-free contract bundle that validates canonical Bean, index, repository identity, and immutable contract-pin boundaries.                                    |
-| Acceptance criteria   | Closed schemas reject unknown fields; Bean IDs and paths are lowercase UUIDv7; Origins are public HTTPS; index bytes and bundle digests are deterministic; tuple mismatch fails closed. |
-| Failure modes         | Unknown metadata, invalid or duplicate IDs, private Origins, empty bodies, non-canonical index bytes, altered contract files, or an incomplete pin is accepted.                         |
-| Oracle                | Parsed validation status, exact canonical bytes, exact SHA-256 values, and absence of any official Bean or attribution declaration.                                                     |
-| Evidence tier         | Contract and behavior.                                                                                                                                                                  |
-| Representative suites | `tests/contract.test.ts`, `tests/validator.test.ts`.                                                                                                                                    |
-| Gate/cost             | Local and pull request; fast.                                                                                                                                                           |
-| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                      |
-
-### Scope decision
-
-The suites fix external bytes and validation outcomes, not private function
-order or Bean prose quality. A new independent parser or serializer invariant
-requires a narrow contract test only when the repository-level oracle cannot
-localize its failure.
-
-## Objective: Fixed Bean-content rights and publication boundary
-
-| Field                 | Entry                                                                                                                                                                                                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Objective             | Keep one commit-scoped `CC-BY-4.0` declaration and exact publisher attestation enforceable without an alternate license mode.                                                                                                                                      |
-| Acceptance criteria   | The parser and renderer agree on exact bytes; unsafe YAML and placeholders are invalid; unsupported and malformed states remain distinct; CI inspects the exact PR head blobs and binds one Bean, the complete change set, and publisher attestation to that head. |
-| Failure modes         | A placeholder installs, a repository self-authorizes a replacement contract, fixture-only CI passes without inspecting PR bytes, an absent canary is cited, stale evidence authorizes publication, or prior grants appear revoked.                                 |
-| Oracle                | Structured parser/publication status, exact declaration and Git blob bytes, an externally supplied trusted contract tuple, digest-bound canary receipt bytes, and an exact-head owner-review boundary.                                                             |
-| Evidence tier         | Contract and acceptance.                                                                                                                                                                                                                                           |
-| Representative suites | `tests/content-license-contract.test.ts`, `tests/rights-semantics-contract.test.ts`, `tests/publication-acceptance.test.ts`.                                                                                                                                       |
-| Gate/cost             | Local and protected pull request; fast.                                                                                                                                                                                                                            |
-| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                                                                                                 |
+| Field                 | Entry                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Objective             | Publish one deterministic contract bundle and validate the canonical public Roastery shape.                                                                                                                                                                                                                             |
+| Acceptance criteria   | One tracked/packageable inventory binds contract and runtime authority; its schemas gate parsed repository data before semantic validation; semantic validation enforces UUIDv7 paths, real public HTTPS URLs and valid ports, unique Bean IDs, normalized repository identity, exact index bytes, and tuple agreement. |
+| Failure modes         | A selected repository supplies validation authority; a runtime import is omitted from the digest/package; schema-invalid data, duplicate IDs, port overflow, private Origins, unsafe paths, altered bundle files, non-canonical index bytes, or tuple mismatch is accepted.                                             |
+| Oracle                | Structured validation status, exact deterministic bytes, and SHA-256 digests.                                                                                                                                                                                                                                           |
+| Evidence tier         | Contract and behavior.                                                                                                                                                                                                                                                                                                  |
+| Representative suites | `tests/contract.test.ts`, `tests/validator.test.ts`, `tests/security-boundary.test.ts`.                                                                                                                                                                                                                                 |
+| Gate/cost             | Local and deterministic-quality pull-request lane; fast.                                                                                                                                                                                                                                                                |
+| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                                                                                                                                                      |
 
 ### Scope decision
 
-Tests cover technical declarations and attestations only. The pull-request gate
-executes the same publication boundary on real event metadata and Git objects;
-fixtures prove its failure modes but do not substitute for that run. Neither
-form certifies identity, ownership, legal sufficiency, truth, safety, quality,
-or endorsement.
+Schemas own object and field structure. Canonical code owns cross-entry and
+semantic invariants. The exact Init contract bytes are part of the same bundle,
+while Plugin orchestration remains outside this repository. Tests fix external
+bytes and outcomes, not private call order, implementation text, or Bean prose
+quality.
 
-## Objective: Read-only validation and bounded index projection
+Package acceptance uses a genuine tarball and production-only install. The npm
+bin and public API must load compiled JavaScript, resolve every runtime
+dependency, and reproduce the declared contract digest; source-only execution
+does not substitute for that evidence.
 
-| Field                 | Entry                                                                                                                                                     |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Objective             | Expose only the three declared local CLI operations while preventing traversal, symlink escape, execution, network behavior, or unintended writes.        |
-| Acceptance criteria   | Validation and digest commands are read-only; check mode is read-only; only unchecked index projection writes; every command returns a structured status. |
-| Failure modes         | Repository data executes, a symlink escapes the root, an invalid command mutates bytes, or an index projection overwrites a linked target.                |
-| Oracle                | Temporary-tree digest, structured CLI status, and exact outside-file bytes.                                                                               |
-| Evidence tier         | Behavior and acceptance.                                                                                                                                  |
-| Representative suites | `tests/security-boundary.test.ts`.                                                                                                                        |
-| Gate/cost             | Local and pull request; fast.                                                                                                                             |
-| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                        |
+## Objective: Fixed Bean-content rights and publication safeguards
 
-### Scope decision
-
-The suite uses real temporary files and processes. It performs no network or
-provider operation and makes no host-isolation claim.
-
-## Objective: Rights-preserving protected contract refresh
-
-| Field                 | Entry                                                                                                                                                                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Objective             | Permit a complete contract re-pin only when personal Roastery bytes and independently derived rights semantics remain exactly unchanged.                                                                                      |
-| Acceptance criteria   | Independent digest-bound A/B artifacts validate with fresh parser/schema state; declaration and `roastery/**` bytes match; all eight semantic negatives reject; canonical evidence and an artifact-bound receipt are emitted. |
-| Failure modes         | Commit, digest, bundle bytes, owner, head, review, changed path, projection bytes, or projection digest mismatch passes; fixture evidence is reported as product performance or legal proof.                                  |
-| Oracle                | Real temporary Git trees, exact SHA-256 projections, schema-valid canonical evidence, bound evidence/artifact digests, and fail-closed negative statuses.                                                                     |
-| Evidence tier         | Acceptance fixture plus protected CI.                                                                                                                                                                                         |
-| Representative suites | `tests/contract-refresh-acceptance.test.ts`.                                                                                                                                                                                  |
-| Gate/cost             | Protected pull request and merge queue; medium.                                                                                                                                                                               |
-| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                                                            |
+| Field                 | Entry                                                                                                                                                                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Objective             | Enforce one commit-scoped `CC-BY-4.0` declaration and one-Bean exact-head publication without alternate license modes.                                                                                                                                           |
+| Acceptance criteria   | Parser and renderer agree on exact bytes; placeholders and unsafe frontmatter are invalid; unsupported and malformed license states differ; publication binds exact Bean, change set, attestation, and PR head; merge-group validation rechecks canonical bytes. |
+| Failure modes         | A placeholder installs, scope/license changes, stale or incomplete attestation, extra changed path, linked file, invalid repository, or unrepresentable third-party notice is accepted.                                                                          |
+| Oracle                | Structured parser/publication status, exact declaration bytes, immutable Git blobs, trusted contract tuple, and repository validation result.                                                                                                                    |
+| Evidence tier         | Contract and acceptance.                                                                                                                                                                                                                                         |
+| Representative suites | `tests/content-license-contract.test.ts`, `tests/publication-acceptance.test.ts`.                                                                                                                                                                                |
+| Gate/cost             | Local and publication pull-request lane; fast.                                                                                                                                                                                                                   |
+| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                                                                                               |
 
 ### Scope decision
 
-GitHub review state is the only fake boundary. The suite combines a synthetic
-fixture result with a referenced real control-plane canary receipt. CI first
-uploads canonical evidence, then binds that upload's ID, digest, and URL into a
-separate final receipt. Neither local fixture output is a remote Task 5 run,
-personal-fork operation, legal conclusion, or performance measurement.
+The checks prove technical declaration, attestation, and artifact invariants.
+They do not certify identity, ownership, legal sufficiency, truth, safety,
+quality, or endorsement.
+
+## Objective: Bounded local CLI and forbidden writes
+
+| Field                 | Entry                                                                                                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Objective             | Expose only validation, deterministic index projection, and contract digest commands while preventing traversal, symlink escape, execution, network behavior, or unintended writes. |
+| Acceptance criteria   | Validation, digest, and index check are read-only; only unchecked index projection writes; every command returns one JSON status.                                                   |
+| Failure modes         | Repository data executes, a linked path escapes the root, an invalid/read-only command mutates bytes, or projection overwrites a linked target.                                     |
+| Oracle                | Temporary-tree digest, process exit code, JSON output, and exact outside-file bytes.                                                                                                |
+| Evidence tier         | Behavior and acceptance.                                                                                                                                                            |
+| Representative suites | `tests/security-boundary.test.ts`.                                                                                                                                                  |
+| Gate/cost             | Local and deterministic-quality pull-request lane; fast.                                                                                                                            |
+| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                  |
+
+### Scope decision
+
+The suite uses real temporary files and child processes without network or
+provider access. It makes no host-isolation or product-performance claim.
+
+## Objective: Lean fail-closed repository governance
+
+| Field                 | Entry                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Objective             | Permit GitHub-native squash auto-merge only after the necessary role-local quality, publication, dependency, and CodeQL evidence exists.                                                                                                                                                                                                                                                                |
+| Acceptance criteria   | Candidate code runs only after an `OWNER`/`MEMBER` decision; collaborator, contributor, none, missing, and login-only inputs fail; merge groups use no pull-request field; quality collects meaningful TS/JS coverage and package closure without a third workflow; the aggregate depends only on eligibility, quality, and publication and preserves failed, invalid, skipped, and unavailable states. |
+| Failure modes         | A non-member or login exception reaches candidate execution, an action is unpinned, permissions widen, coverage/package evidence disappears, a duplicate third lane appears, a necessary lane disappears, or a missing state becomes success.                                                                                                                                                           |
+| Oracle                | Parsed workflow graph, executable CI policy result, merge-policy structure, permissions, commands, and action pins.                                                                                                                                                                                                                                                                                     |
+| Evidence tier         | Contract and behavior.                                                                                                                                                                                                                                                                                                                                                                                  |
+| Representative suites | `tests/governance-policy.test.mjs`, `.github/ci-policy.mjs`.                                                                                                                                                                                                                                                                                                                                            |
+| Gate/cost             | Local and deterministic-quality pull-request lane; fast.                                                                                                                                                                                                                                                                                                                                                |
+| Owner                 | `openboa-ai/coffee-chat-roastery`.                                                                                                                                                                                                                                                                                                                                                                      |
+
+### Scope decision
+
+The local oracle validates committed workflow intent and cannot simulate the
+GitHub ruleset evaluator. Remote settings remain platform-owned evidence.

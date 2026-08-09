@@ -109,7 +109,7 @@ describe("fixed Standard Roastery content declaration", () => {
       await import("../src/projection/content-license.js");
     const { parseContentLicense } =
       await import("../src/validation/content-license.js");
-    const { interpretContractBundle } =
+    const { validateContractBundle } =
       await import("../src/validation/contract-bundle.js");
     const atLimit = "\u{1fad8}".repeat(120);
     const overLimit = "a".repeat(121);
@@ -137,13 +137,12 @@ describe("fixed Standard Roastery content declaration", () => {
       declaration: { attribution: atLimit },
     });
     await expect(
-      interpretContractBundle(
+      validateContractBundle(
         repositoryRoot,
         Buffer.from(declarationAtLimit, "utf8"),
       ),
     ).resolves.toMatchObject({
       validation: "passed",
-      projection: { normalized_attribution: atLimit, status: "supported" },
     });
 
     expect(

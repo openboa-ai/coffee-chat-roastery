@@ -1,19 +1,11 @@
 # Repository contribution flow
 
-Every change is developed on a branch and proposed through a pull request. Every
-pull-request source commit must carry a GitHub-verifiable signature before the
-pull request can enter the merge queue. `main` accepts squash merges only.
+Develop each coherent change on a branch and propose it through a pull request.
+`main` accepts GitHub-native squash merges only after the exact head passes the
+required deterministic aggregate, dependency review, and native CodeQL rule.
 
-GitHub owns the merge decision:
-
-- ordinary paths may use GitHub native auto-merge after all required checks,
-  code scanning, and code quality rules pass;
-- an eligible pull request enters the native merge queue, where the required
-  `merge_group` checks run against GitHub's queued merge candidate;
-- protected control-plane and contract paths additionally require the matching
-  CODEOWNERS approval;
-- repository workflows provide evidence but never merge pull requests.
-
-This document is a signed ordinary-path merge-queue canary. Its acceptance
-requires zero human reviews, successful pull-request and `merge_group` checks, a
-GitHub-verified squash commit on `main`, and deletion of this source branch.
+Only organization `OWNER` or `MEMBER` pull-request authors are eligible.
+CODEOWNERS routes sensitive changes to the owning team but does not create a
+human approval requirement. The merge queue revalidates the same required
+workflow graph with explicit failure states. Repository workflows provide
+evidence and never merge pull requests themselves.

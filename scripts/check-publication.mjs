@@ -8,8 +8,8 @@ import { resolve } from "node:path";
 import {
   OWNER_PUBLICATION_ATTESTATION,
   validateBeanPublication,
-  validateRepository,
-} from "../src/validation/repository.ts";
+} from "../src/validation/publication.ts";
+import { validateRepository } from "../src/validation/repository.ts";
 
 const ATTESTATION_SCHEMA = "coffee-chat/bean-publication-attestation";
 const BEAN_PATH =
@@ -217,15 +217,21 @@ async function main() {
     emit({ status: "not_applicable", reason: "no_roastery_change" });
     return;
   }
-  if (event.kind !== "pull_request") {
-    fail("publication_attestation_unavailable");
-  }
   const beanPaths = roasteryPaths.filter((path) => BEAN_PATH.test(path));
   const beanPath = beanPaths[0];
-  if (beanPaths.length !== 1 || beanPath === undefined) {
+  const expectedPaths =
+    beanPath === undefined
+      ? []
+      : [beanPath, "roastery/index.json"].sort((left, right) =>
+          Buffer.from(left).compare(Buffer.from(right)),
+        );
+  if (
+    beanPaths.length !== 1 ||
+    beanPath === undefined ||
+    JSON.stringify(paths) !== JSON.stringify(expectedPaths)
+  ) {
     fail("invalid_publication_paths");
   }
-  const attestation = parseAttestation(event.body);
   const expectedContract = trustedContract(process.env);
   const repositoryResult = await validateRepository(root, expectedContract);
   if (repositoryResult.status !== "valid") fail(repositoryResult.reason);
@@ -233,6 +239,16 @@ async function main() {
   const beanDigest = `sha256:${createHash("sha256")
     .update(beanBytes)
     .digest("hex")}`;
+  if (event.kind === "merge_group") {
+    emit({
+      status: "validated",
+      head_sha: event.headSha,
+      bean_path: beanPath,
+      bean_digest: beanDigest,
+    });
+    return;
+  }
+  const attestation = parseAttestation(event.body);
   const changeSetDigest = publicationChangeSetDigest(
     root,
     event.headSha,
