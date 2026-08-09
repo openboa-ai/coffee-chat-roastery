@@ -145,10 +145,13 @@ test("required workflows expose safe, always-created pull request evidence", () 
     assert.equal(typeof document, "object", `${path} must parse as YAML`);
     assert.ok(document.on?.pull_request !== undefined, `${path}: pull_request`);
     assert.ok(document.on?.merge_group !== undefined, `${path}: merge_group`);
-    assert.equal(
+    const expectedPullRequest = path.endsWith("quality.yml")
+      ? { types: ["opened", "synchronize", "reopened", "edited"] }
+      : null;
+    assert.deepEqual(
       document.on.pull_request,
-      null,
-      `${path}: pull_request filters`,
+      expectedPullRequest,
+      `${path}: pull_request activity contract`,
     );
     assert.equal(document.on.merge_group, null, `${path}: merge_group filters`);
     assert.equal(document.on?.pull_request_target, undefined, path);
@@ -240,6 +243,12 @@ test("publication and contract-refresh lanes execute acceptance and preserve the
 
   assert.ok(publication, "publication lane must exist");
   assert.ok(refresh, "contract-refresh lane must exist");
+  assert.deepEqual(workflow.on.pull_request.types, [
+    "opened",
+    "synchronize",
+    "reopened",
+    "edited",
+  ]);
   assert.deepEqual(aggregate.needs, [
     "quality",
     "publication",
