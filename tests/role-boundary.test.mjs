@@ -33,15 +33,13 @@ function repositoryPaths() {
   ].sort();
 }
 
-test("governance bootstrap owns only the Roastery trust base", () => {
+test("protected contract milestone stays inside the Roastery owner boundary", () => {
   const paths = repositoryPaths();
   const forbidden = [
     ".codex-plugin/",
     "plugin.json",
     "skills/",
     "roastery/",
-    "contract/",
-    "src/",
     "eval/",
     "benchmark/",
     "tasks/",
@@ -55,10 +53,20 @@ test("governance bootstrap owns only the Roastery trust base", () => {
       false,
       `foreign or premature surface: ${path}`,
     );
+    if (path.startsWith("src/")) {
+      assert.equal(
+        path === "src/cli.ts" ||
+          path.startsWith("src/contract/") ||
+          path.startsWith("src/projection/") ||
+          path.startsWith("src/validation/"),
+        true,
+        `foreign Roastery implementation surface: ${path}`,
+      );
+    }
   }
 });
 
-test("official seed governance contains no personal or sample Bean", () => {
+test("official protected contract remains Bean-free and attribution-free", () => {
   const paths = repositoryPaths();
   assert.equal(
     paths.some((path) => path.startsWith("roastery/beans/")),
@@ -67,6 +75,7 @@ test("official seed governance contains no personal or sample Bean", () => {
   assert.equal(paths.includes("roastery/CONTENT_LICENSE.md"), false);
 
   const readme = readFileSync(resolve(root, "README.md"), "utf8");
-  assert.match(readme, /governance-only/u);
+  assert.match(readme, /protected Roastery contract/u);
   assert.match(readme, /Bean-free/u);
+  assert.doesNotMatch(readme, /governance-only/u);
 });
