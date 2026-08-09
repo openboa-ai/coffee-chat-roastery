@@ -321,6 +321,8 @@ const SAFE_REPOSITORY_GIT_ENVIRONMENT = {
   ...process.env,
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_NO_LAZY_FETCH: "1",
+  GIT_NO_REPLACE_OBJECTS: "1",
   GIT_OPTIONAL_LOCKS: "0",
   GIT_PAGER: "cat",
   GIT_TERMINAL_PROMPT: "0",
@@ -567,13 +569,16 @@ function pinMatches(
 export async function evaluateContractRefreshCandidate(
   input: ContractRefreshInput,
 ): Promise<ContractRefreshResult> {
+  if (!COMMIT.test(input.beforeCommit) || !COMMIT.test(input.candidateHead)) {
+    return { status: "rejected", reason: "commit_reference_invalid" };
+  }
   let actualHead: string;
   try {
     actualHead = gitText(input.forkRoot, ["rev-parse", "HEAD"]);
   } catch {
     return { status: "rejected", reason: "candidate_head_mismatch" };
   }
-  if (actualHead !== input.candidateHead || !COMMIT.test(input.candidateHead)) {
+  if (actualHead !== input.candidateHead) {
     return { status: "rejected", reason: "candidate_head_mismatch" };
   }
 

@@ -3,9 +3,10 @@
   "merge_method": "squash",
   "required_events": ["merge_group", "pull_request"],
   "auto_merge": {
-    "ordinary": true,
-    "protected_after_code_owner_approval": true
+    "required_checks": true,
+    "verified_members_only": true
   },
+  "eligible_author_associations": ["OWNER", "MEMBER"],
   "required_checks": [
     {
       "context": "Roastery required",
@@ -13,10 +14,6 @@
     },
     {
       "context": "Roastery dependency review",
-      "integration_id": 15368
-    },
-    {
-      "context": "Roastery CodeQL JavaScript-TypeScript",
       "integration_id": 15368
     }
   ],

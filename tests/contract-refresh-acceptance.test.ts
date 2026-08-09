@@ -260,6 +260,124 @@ describe("protected contract refresh", () => {
     expect(existsSync(sentinel)).toBe(false);
   });
 
+  test("does not lazy-fetch missing objects from repository-config promisor remotes", async () => {
+    const fixture = remember(createSyntheticContractRefreshFixture());
+    const hookRoot = mkdtempSync(resolve(tmpdir(), "contract-refresh-fetch-"));
+    roots.push(hookRoot);
+    const sentinel = resolve(hookRoot, "executed");
+    const fetcher = resolve(hookRoot, "fetcher.sh");
+    writeFileSync(
+      fetcher,
+      `#!/bin/sh\ntouch ${JSON.stringify(sentinel)}\nexit 1\n`,
+    );
+    chmodSync(fetcher, 0o700);
+    const root = fixture.newBundle.root;
+    const objectId = execFileSync(
+      "git",
+      [
+        "-C",
+        root,
+        "rev-parse",
+        `${fixture.newBundle.commit}:contract/contract.json`,
+      ],
+      { encoding: "utf8" },
+    ).trim();
+    const gitDirectory = execFileSync(
+      "git",
+      ["-C", root, "rev-parse", "--git-dir"],
+      { encoding: "utf8" },
+    ).trim();
+    execFileSync("git", [
+      "-C",
+      root,
+      "config",
+      "extensions.partialClone",
+      "evil",
+    ]);
+    execFileSync("git", ["-C", root, "config", "remote.evil.promisor", "true"]);
+    execFileSync("git", ["-C", root, "config", "protocol.ext.allow", "always"]);
+    execFileSync("git", [
+      "-C",
+      root,
+      "config",
+      "remote.evil.partialclonefilter",
+      "blob:none",
+    ]);
+    execFileSync("git", [
+      "-C",
+      root,
+      "config",
+      "remote.evil.url",
+      `ext::${fetcher}`,
+    ]);
+    rmSync(
+      resolve(
+        root,
+        gitDirectory,
+        "objects",
+        objectId.slice(0, 2),
+        objectId.slice(2),
+      ),
+      { force: true },
+    );
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    await expect(
+      evaluateContractRefreshCandidate(inputFrom(fixture)),
+    ).resolves.toMatchObject({ status: "rejected" });
+    expect(existsSync(sentinel)).toBe(false);
+  });
+
+  test("ignores repository replacement refs when resolving declared commits", async () => {
+    const fixture = remember(createSyntheticContractRefreshFixture());
+    const root = fixture.newBundle.root;
+    const emptyTree = execFileSync("git", ["-C", root, "mktree"], {
+      encoding: "utf8",
+      input: "",
+    }).trim();
+    const replacement = execFileSync(
+      "git",
+      ["-C", root, "commit-tree", emptyTree, "-m", "replacement"],
+      { encoding: "utf8" },
+    ).trim();
+    execFileSync("git", [
+      "-C",
+      root,
+      "replace",
+      fixture.newBundle.commit,
+      replacement,
+    ]);
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    await expect(
+      evaluateContractRefreshCandidate(inputFrom(fixture)),
+    ).resolves.toMatchObject({ status: "accepted" });
+  });
+
+  test("rejects option-like commit references before invoking Git", async () => {
+    const fixture = remember(createSyntheticContractRefreshFixture());
+    const sentinelRoot = mkdtempSync(
+      resolve(tmpdir(), "contract-refresh-output-"),
+    );
+    roots.push(sentinelRoot);
+    const sentinel = resolve(sentinelRoot, "written");
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    await expect(
+      evaluateContractRefreshCandidate({
+        ...inputFrom(fixture),
+        beforeCommit: `--output=${sentinel}`,
+      }),
+    ).resolves.toEqual({
+      status: "rejected",
+      reason: "commit_reference_invalid",
+    });
+    expect(existsSync(sentinel)).toBe(false);
+  });
+
   test("rejects aliased A/B bundle roots before treating them as independent evidence", async () => {
     const fixture = remember(
       createSyntheticContractRefreshFixture(undefined, {

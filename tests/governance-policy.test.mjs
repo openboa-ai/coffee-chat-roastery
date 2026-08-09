@@ -376,21 +376,19 @@ test("coverage evidence fails closed before same-repository upload", () => {
   });
 });
 
-test("merge policy and CODEOWNERS protect control-plane changes only", () => {
+test("merge policy uses member-only auto-merge with ownership routing", () => {
   const policy = readJson(".github/merge-policy.json");
   assert.equal(policy.repository_role, "roastery");
   assert.equal(policy.merge_method, "squash");
-  assert.equal(policy.auto_merge.ordinary, true);
-  assert.equal(policy.auto_merge.protected_after_code_owner_approval, true);
-  assert.equal(policy.auto_merge.protected, undefined);
+  assert.deepEqual(policy.auto_merge, {
+    required_checks: true,
+    verified_members_only: true,
+  });
+  assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
   assert.deepEqual(policy.required_events, ["merge_group", "pull_request"]);
   assert.deepEqual(policy.required_checks, [
     { context: "Roastery required", integration_id: 15368 },
     { context: "Roastery dependency review", integration_id: 15368 },
-    {
-      context: "Roastery CodeQL JavaScript-TypeScript",
-      integration_id: 15368,
-    },
   ]);
 
   for (const protectedPath of [
