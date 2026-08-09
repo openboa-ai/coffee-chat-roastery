@@ -54,6 +54,7 @@ function fixture({
 
 test("one validator accepts the Bean-free seed and an initialized owner fork", () => {
   const seed = fixture();
+  const danglingBeans = fixture();
   const owner = fixture({
     initialized: true,
     repository: "https://github.com/example/coffee-chat",
@@ -66,6 +67,18 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
         repository: "https://github.com/openboa-ai/coffee-chat-roastery",
         status: "valid",
       },
+    );
+    symlinkSync(
+      join(danglingBeans, "missing-beans"),
+      join(danglingBeans, "roastery", "beans"),
+    );
+    assert.deepEqual(
+      validate({
+        root: danglingBeans,
+        mode: "seed",
+        expectedContract: contract,
+      }),
+      { code: "unsafe_path", status: "invalid" },
     );
     assert.deepEqual(
       validate({
@@ -101,6 +114,7 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
     );
   } finally {
     rmSync(seed, { force: true, recursive: true });
+    rmSync(danglingBeans, { force: true, recursive: true });
     rmSync(owner, { force: true, recursive: true });
   }
 });
@@ -147,7 +161,16 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
       "valid",
     );
 
-    for (const unsafeOrigin of ["localhost", "127.0.0.1", "[::1]"]) {
+    for (const unsafeOrigin of [
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      "100.64.0.1",
+      "224.0.0.1",
+      "[::]",
+      "[::1]",
+      "[::ffff:127.0.0.1]",
+    ]) {
       writeFileSync(beanPath, bean.replace("example.com", unsafeOrigin));
       assert.deepEqual(
         validate({ root, mode: "initialized", expectedContract: contract }),

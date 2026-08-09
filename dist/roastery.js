@@ -114,21 +114,7 @@ function publicOrigin(value) {
         host.endsWith(".local")) {
         return false;
     }
-    if (isIP(host) === 4) {
-        const octets = host.split(".").map(Number);
-        if (octets[0] === 10 ||
-            octets[0] === 127 ||
-            (octets[0] === 169 && octets[1] === 254) ||
-            (octets[0] === 172 && (octets[1] ?? 0) >= 16 && (octets[1] ?? 0) <= 31) ||
-            (octets[0] === 192 && octets[1] === 168)) {
-            return false;
-        }
-    }
-    if (isIP(host) === 6 &&
-        (host === "::1" || /^f[cd]/u.test(host) || /^fe[89ab]/u.test(host))) {
-        return false;
-    }
-    return true;
+    return isIP(host) === 0;
 }
 function parseBean(path) {
     const content = readFileSync(path);
@@ -170,8 +156,12 @@ function scanBeans(root) {
     const roasteryRoot = resolve(root, "roastery");
     safeChild(root, roasteryRoot);
     const directory = resolve(root, "roastery", "beans");
-    if (!existsSync(directory))
+    const directoryEntry = lstatSync(directory, { throwIfNoEntry: false });
+    if (directoryEntry === undefined)
         return [];
+    if (!directoryEntry.isDirectory() || directoryEntry.isSymbolicLink()) {
+        fail("unsafe_path");
+    }
     safeChild(root, directory);
     const ids = new Set();
     const entries = readdirSync(directory, { withFileTypes: true });
