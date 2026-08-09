@@ -7,6 +7,7 @@ const OFFICIAL_REPOSITORY = "https://github.com/openboa-ai/coffee-chat-roastery"
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
+const URL_WHITESPACE_OR_CONTROL = /[\s\u0000-\u001f\u007f-\u009f]/u;
 const SPECIAL_USE_DNS_TLDS = new Set([
     "alt",
     "arpa",
@@ -61,8 +62,9 @@ function readJson(path, keys, code) {
     return result;
 }
 function normalizeRepository(value) {
-    if (typeof value !== "string")
+    if (typeof value !== "string" || URL_WHITESPACE_OR_CONTROL.test(value)) {
         fail("invalid_repository_identity");
+    }
     let url;
     try {
         url = new URL(value);
@@ -120,6 +122,8 @@ function safeChild(root, path) {
     }
 }
 function publicOrigin(value) {
+    if (URL_WHITESPACE_OR_CONTROL.test(value))
+        return false;
     let url;
     try {
         url = new URL(value);

@@ -64,6 +64,10 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
     initialized: true,
     repository: "https://github.com/example/coffee-chat",
   });
+  const whitespaceRepository = fixture({
+    initialized: true,
+    repository: "https://github.com/exam\tple/coffee-chat",
+  });
   try {
     assert.deepEqual(
       validate({ root: seed, mode: "seed", expectedContract: contract }),
@@ -151,6 +155,14 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
     );
     assert.deepEqual(
       validate({
+        root: whitespaceRepository,
+        mode: "initialized",
+        expectedContract: contract,
+      }),
+      { code: "invalid_repository_identity", status: "invalid" },
+    );
+    assert.deepEqual(
+      validate({
         root: owner,
         mode: "initialized",
         expectedContract: { ...contract, digest: `sha256:${"c".repeat(64)}` },
@@ -173,6 +185,7 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
     rmSync(seed, { force: true, recursive: true });
     rmSync(danglingBeans, { force: true, recursive: true });
     rmSync(owner, { force: true, recursive: true });
+    rmSync(whitespaceRepository, { force: true, recursive: true });
   }
 });
 
@@ -233,6 +246,7 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
       "hidden.onion",
       "service.internal",
       "private.alt",
+      "exam\tple.com",
       "127.0.0.1",
       "0.0.0.0",
       "100.64.0.1",
