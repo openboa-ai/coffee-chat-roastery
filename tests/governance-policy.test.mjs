@@ -21,6 +21,7 @@ import { parse } from "yaml";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const emptyBase = "8d57df18eed80dc1a8e0e85466f240d08af6fdde";
 const trustBaseCommit = "3231235c271bf0aa4382a4eb576421fa0c149596";
+const protectedContractBase = "373e0525e12d5525441504d665bf5980e1484858";
 const workflowPaths = [
   ".github/workflows/policy.yml",
   ".github/workflows/quality.yml",
@@ -221,13 +222,84 @@ test("migration lanes fetch the immutable empty-base history", () => {
     const checkoutSteps = collectByKey(document.jobs, "uses")
       .map((use, index) => ({ use, index }))
       .filter(({ use }) => String(use).startsWith("actions/checkout@"));
-    assert.equal(checkoutSteps.length, 1, `${path}: checkout cardinality`);
-    const jobs = Object.values(document.jobs ?? {});
-    const checkout = jobs
+    assert.ok(checkoutSteps.length >= 1, `${path}: checkout cardinality`);
+    const checkouts = Object.values(document.jobs ?? {})
       .flatMap((job) => job.steps ?? [])
-      .find((step) => String(step.uses).startsWith("actions/checkout@"));
-    assert.equal(checkout?.with?.["fetch-depth"], 0, path);
+      .filter((step) => String(step.uses).startsWith("actions/checkout@"));
+    for (const checkout of checkouts) {
+      assert.equal(checkout.with?.["fetch-depth"], 0, path);
+    }
   }
+});
+
+test("publication and contract-refresh lanes execute acceptance and preserve the receipt", () => {
+  const workflow = parse(readText(".github/workflows/quality.yml"));
+  const publication = workflow.jobs.publication;
+  const refresh = workflow.jobs["contract-refresh"];
+  const aggregate = workflow.jobs.aggregate;
+
+  assert.ok(publication, "publication lane must exist");
+  assert.ok(refresh, "contract-refresh lane must exist");
+  assert.deepEqual(aggregate.needs, [
+    "quality",
+    "publication",
+    "contract-refresh",
+  ]);
+  assert.ok(
+    publication.steps.some((step) => step.run === "npm run test:publication"),
+  );
+  assert.ok(
+    publication.steps.some((step) => step.run === "npm run check:publication"),
+  );
+  const publicationCheckout = publication.steps.find((step) =>
+    String(step.uses).startsWith("actions/checkout@"),
+  );
+  assert.equal(
+    publicationCheckout?.with?.ref,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+  assert.ok(
+    refresh.steps.some((step) => step.run === "npm run test:contract-refresh"),
+  );
+  const acceptance = refresh.steps.find(
+    (step) => step.run === "npm run test:contract-refresh",
+  );
+  assert.equal(
+    acceptance?.env?.CONTRACT_REFRESH_EVIDENCE_OUTPUT,
+    "artifacts/contract-refresh-evidence.json",
+  );
+  const evidenceArtifact = refresh.steps.find(
+    (step) => step.id === "upload-contract-refresh-evidence",
+  );
+  assert.equal(evidenceArtifact?.with?.name, "contract-refresh-evidence");
+  assert.equal(
+    evidenceArtifact?.with?.path,
+    "artifacts/contract-refresh-evidence.json",
+  );
+  assert.equal(evidenceArtifact?.with?.["if-no-files-found"], "error");
+  assert.equal(evidenceArtifact?.with?.["retention-days"], 90);
+  const buildReceipt = refresh.steps.find(
+    (step) => step.run === "npm run build:contract-refresh-receipt",
+  );
+  assert.deepEqual(buildReceipt?.env, {
+    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_DIGEST:
+      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-digest }}",
+    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_ID:
+      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-id }}",
+    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_URL:
+      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-url }}",
+    CONTRACT_REFRESH_EVIDENCE_PATH: "artifacts/contract-refresh-evidence.json",
+    CONTRACT_REFRESH_RECEIPT_OUTPUT: "artifacts/contract-refresh-receipt.json",
+    GITHUB_RUN_URL:
+      "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+  });
+  const artifact = refresh.steps.find(
+    (step) => step.id === "upload-contract-refresh-receipt",
+  );
+  assert.equal(artifact?.with?.name, "contract-refresh-receipt");
+  assert.equal(artifact?.with?.["if-no-files-found"], "error");
+  assert.equal(artifact?.with?.["retention-days"], 90);
+  assert.equal(artifact?.with?.path, "artifacts/contract-refresh-receipt.json");
 });
 
 test("coverage evidence fails closed before same-repository upload", () => {
@@ -301,6 +373,23 @@ test("merge policy and CODEOWNERS protect control-plane changes only", () => {
     },
   ]);
 
+  for (const protectedPath of [
+    "/src/cli.ts",
+    "/tests/content-license-contract.test.ts",
+    "/tests/rights-semantics-contract.test.ts",
+    "/tests/publication-acceptance.test.ts",
+    "/tests/contract-refresh-acceptance.test.ts",
+    "/tests/security-boundary.test.ts",
+    "/tests/helpers/**",
+    "/scripts/build-contract-refresh-receipt.mjs",
+    "/scripts/check-publication.mjs",
+  ]) {
+    assert.ok(
+      policy.protected_paths.includes(protectedPath),
+      `missing protected contract path: ${protectedPath}`,
+    );
+  }
+
   const codeowners = readText("CODEOWNERS");
   assert.doesNotMatch(
     codeowners,
@@ -340,7 +429,42 @@ test("migration evidence is recomputed from the reviewed trust-base tree", () =>
   assert.equal(evidence.changed_surfaces, 28);
 });
 
-test("CI preserves the bootstrap receipt when later allowed surfaces are added", () => {
+test("migration evidence is recomputed for the protected contract milestone", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(root, "scripts/check-migration-receipt.mjs"),
+      "--root",
+      root,
+      "--base",
+      protectedContractBase,
+      "--projection",
+      resolve(
+        root,
+        "docs/migration/selections/task-5-protected-roastery-contract.json",
+      ),
+      "--equality",
+      resolve(
+        root,
+        "docs/migration/equality/task-5-protected-roastery-contract.json",
+      ),
+      "--receipt",
+      resolve(
+        root,
+        "docs/migration/receipts/task-5-protected-roastery-contract.json",
+      ),
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const evidence = JSON.parse(result.stdout);
+  assert.equal(evidence.status, "passed");
+  assert.equal(evidence.target_commit, null);
+  assert.equal(evidence.selected_rows, 1);
+  assert.ok(evidence.changed_surfaces > 40);
+});
+
+test("CI rejects later surfaces without a scoped migration milestone", () => {
   const fixture = createRepositoryFixture("roastery-post-bootstrap-");
   try {
     const laterPath = resolve(fixture.root, "docs/control-plane-canary.md");
@@ -351,7 +475,9 @@ test("CI preserves the bootstrap receipt when later allowed surfaces are added",
       [resolve(fixture.root, ".github/ci-policy.mjs")],
       { cwd: fixture.root, encoding: "utf8" },
     );
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.notEqual(result.status, 0, "unclassified later work must fail");
+    assert.match(result.stderr, /active migration checker failed/u);
+    assert.match(result.stderr, /changed surfaces mismatch/u);
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }
