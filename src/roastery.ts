@@ -1,14 +1,16 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   lstatSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { isIP } from "node:net";
-import { basename, resolve, sep } from "node:path";
+import { basename, relative, resolve, sep } from "node:path";
 
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
 
@@ -132,13 +134,26 @@ function contractPin(value: unknown): ContractPin {
 }
 
 function safeChild(root: string, path: string): void {
-  const stat = lstatSync(path);
-  if (stat.isSymbolicLink()) fail("unsafe_path");
-  const canonicalRoot = `${realpathSync(root)}${sep}`;
-  const canonicalPath = realpathSync(path);
+  const lexicalRoot = resolve(root);
+  const candidate = resolve(path);
+  const child = relative(lexicalRoot, candidate);
   if (
-    canonicalPath !== realpathSync(root) &&
-    !canonicalPath.startsWith(canonicalRoot)
+    child === ".." ||
+    child.startsWith(`..${sep}`) ||
+    resolve(lexicalRoot, child) !== candidate
+  ) {
+    fail("unsafe_path");
+  }
+  let cursor = lexicalRoot;
+  for (const segment of child.split(sep).filter(Boolean)) {
+    cursor = resolve(cursor, segment);
+    if (lstatSync(cursor).isSymbolicLink()) fail("unsafe_path");
+  }
+  const canonicalRoot = realpathSync(lexicalRoot);
+  const canonicalCandidate = realpathSync(candidate);
+  if (
+    canonicalCandidate !== canonicalRoot &&
+    !canonicalCandidate.startsWith(`${canonicalRoot}${sep}`)
   ) {
     fail("unsafe_path");
   }
@@ -246,8 +261,26 @@ export function projectIndex({
   write?: boolean;
 }): ProjectIndexResult {
   const beans = scanBeans(root);
-  if (write)
-    writeFileSync(resolve(root, "roastery", "index.json"), indexBytes(beans));
+  if (write) {
+    const roasteryRoot = resolve(root, "roastery");
+    safeChild(root, roasteryRoot);
+    const indexPath = resolve(roasteryRoot, "index.json");
+    if (existsSync(indexPath)) safeChild(root, indexPath);
+    const temporaryPath = resolve(
+      roasteryRoot,
+      `.index-${process.pid}-${randomUUID()}.tmp`,
+    );
+    try {
+      writeFileSync(temporaryPath, indexBytes(beans), {
+        encoding: "utf8",
+        flag: "wx",
+        mode: 0o600,
+      });
+      renameSync(temporaryPath, indexPath);
+    } finally {
+      rmSync(temporaryPath, { force: true });
+    }
+  }
   return { beans, status: "projected", wrote: write };
 }
 

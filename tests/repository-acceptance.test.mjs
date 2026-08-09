@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -83,6 +84,9 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
     initialized: true,
     repository: "https://github.com/example/coffee-chat",
   });
+  const external = mkdtempSync(join(tmpdir(), "roastery-external-"));
+  const externalTarget = join(external, "must-not-change.txt");
+  writeFileSync(externalTarget, "unchanged\n");
   const id = "018f0f31-9d95-7c89-8f7a-9de83bb3f123";
   const bean = `---\nid: ${id}\norigins:\n  - https://example.com/source\n---\n\nA deliberate point of view.\n`;
   const beanPath = join(root, "roastery", "beans", `${id}.md`);
@@ -115,12 +119,21 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
     }
 
     writeFileSync(beanPath, bean);
-    symlinkSync("../index.json", join(root, "roastery", "beans", "escape.md"));
+    const unsafeBean = join(root, "roastery", "beans", "escape.md");
+    symlinkSync("../index.json", unsafeBean);
     assert.deepEqual(validate({ root, mode: "initialized" }), {
       code: "unsafe_path",
       status: "invalid",
     });
+    unlinkSync(unsafeBean);
+
+    const indexPath = join(root, "roastery", "index.json");
+    unlinkSync(indexPath);
+    symlinkSync(externalTarget, indexPath);
+    assert.throws(() => projectIndex({ root, write: true }), /unsafe_path/u);
+    assert.equal(readFileSync(externalTarget, "utf8"), "unchanged\n");
   } finally {
     rmSync(root, { force: true, recursive: true });
+    rmSync(external, { force: true, recursive: true });
   }
 });
