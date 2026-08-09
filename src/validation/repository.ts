@@ -475,11 +475,6 @@ async function validateRefreshBundle(
   ) {
     return { status: "rejected", reason: "bundle_repository_mismatch" };
   }
-  if (
-    gitText(bundle.root, ["status", "--porcelain", "--", "contract"]) !== ""
-  ) {
-    return { status: "rejected", reason: "bundle_byte_mismatch" };
-  }
   let committedRoot: string;
   try {
     committedRoot = await materializeCommittedContractBundle(
