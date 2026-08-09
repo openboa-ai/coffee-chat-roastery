@@ -1,14 +1,15 @@
 # Coffee Chat Roastery repository rules
 
 This repository is the official, public Roastery target owned by Openboa AI. It
-is currently a governance-only, Bean-free trust base. Do not describe a planned
-contract, validator, publication flow, or fork seed as implemented.
+is a Bean-free trust base with the protected contract, validator, and
+publication checks. Do not describe the planned attribution-free fork seed or
+personal publication workflow as implemented.
 
 ## Repository boundary
 
-- This repository may own the canonical Roastery contract, validator,
-  Publication Contract, publication CI, and an attribution-free empty fork seed
-  when those capabilities are implemented through later pull requests.
+- This repository owns the canonical Roastery contract, validator, Publication
+  Contract, and publication CI. It may own an attribution-free empty fork seed
+  when that capability is implemented through a later pull request.
 - It must not own the Coffee Chat Plugin, evaluator, benchmark, personal or
   sample Beans, generated Coffee, or another person's Roastery.
 - Do not add `roastery/CONTENT_LICENSE.md` or personal attribution to the

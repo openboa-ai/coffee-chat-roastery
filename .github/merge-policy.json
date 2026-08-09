@@ -29,33 +29,68 @@
     "/package.json",
     "/package-lock.json",
     "/scripts/check-migration-receipt.mjs",
+    "/scripts/build-contract-refresh-receipt.mjs",
+    "/scripts/check-publication.mjs",
     "/docs/migration/**",
     "/contract/**",
     "/roastery/CONTENT_LICENSE.md",
+    "/src/cli.ts",
     "/src/contract/**",
     "/src/projection/**",
-    "/src/validation/**"
+    "/src/validation/**",
+    "/tests/content-license-contract.test.ts",
+    "/tests/contract.test.ts",
+    "/tests/rights-semantics-contract.test.ts",
+    "/tests/publication-acceptance.test.ts",
+    "/tests/contract-refresh-acceptance.test.ts",
+    "/tests/security-boundary.test.ts",
+    "/tests/validator.test.ts",
+    "/tests/helpers/**"
   ],
   "migration": {
     "base_commit": "8d57df18eed80dc1a8e0e85466f240d08af6fdde",
     "target_commit": "3231235c271bf0aa4382a4eb576421fa0c149596",
     "checker": "scripts/check-migration-receipt.mjs",
-    "oracle_commands": ["governance:oracle"],
-    "reviewed_authority": {
-      "target_owner": "openboa-ai/coffee-chat-roastery",
-      "task": "task-4",
-      "objective": "governance-trust-base",
-      "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
-      "generator_sha256": "110f1a2a00d8cd7095e79f6c090ffc833f62e3c39adf71790bf29b1e9d7338c7",
-      "objective_selection_sha256": "56407a56d2f9600e9ecbf8782886e65013c0ca105c5b1e323eeab300ea44670e",
-      "projection_sha256": "0f3ca07982281a98443212bbc7930b4e4da024552eada001f25a9888d67693a2",
-      "changed_surface_classification_sha256": "7ea325447cbe592f32b6242c1ab9ceae4b58ef0d9f262b388b5c2aca21219cc5",
-      "equality_receipt_sha256": "fbc6ede33d8f2d07f84c6228e96dec6fd4b472749e08fef2d29ebaf6b0ee834e",
-      "execution_identity_receipt_sha256": "fb333f7675a0252d60d9b1f1dc12bb98565da73cabd1d270ef20f2aee01015b0",
-      "target_bootstrap_receipt_sha256": "f5a53f1b066d5b6e6c2352f41cf6985e8e8356eaa3c9b36e6e101dcde0de23a1",
-      "changed_surfaces_sha256": "74e5ce5ebbbc0ae77f7dce67f68dda3b373103c08300aec324e829ae7e272f42",
-      "selected_rows": 35,
-      "changed_surfaces": 28
-    }
+    "oracle_commands": ["governance:oracle", "test:publication"],
+    "active_milestone": {
+      "base_commit": "373e0525e12d5525441504d665bf5980e1484858",
+      "projection": "docs/migration/selections/task-5-protected-roastery-contract.json",
+      "equality": "docs/migration/equality/task-5-protected-roastery-contract.json",
+      "receipt": "docs/migration/receipts/task-5-protected-roastery-contract.json"
+    },
+    "reviewed_authorities": [
+      {
+        "target_owner": "openboa-ai/coffee-chat-roastery",
+        "task": "task-4",
+        "objective": "governance-trust-base",
+        "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
+        "generator_sha256": "110f1a2a00d8cd7095e79f6c090ffc833f62e3c39adf71790bf29b1e9d7338c7",
+        "objective_selection_sha256": "56407a56d2f9600e9ecbf8782886e65013c0ca105c5b1e323eeab300ea44670e",
+        "projection_sha256": "0f3ca07982281a98443212bbc7930b4e4da024552eada001f25a9888d67693a2",
+        "changed_surface_classification_sha256": "7ea325447cbe592f32b6242c1ab9ceae4b58ef0d9f262b388b5c2aca21219cc5",
+        "equality_receipt_sha256": "fbc6ede33d8f2d07f84c6228e96dec6fd4b472749e08fef2d29ebaf6b0ee834e",
+        "execution_identity_receipt_sha256": "fb333f7675a0252d60d9b1f1dc12bb98565da73cabd1d270ef20f2aee01015b0",
+        "target_bootstrap_receipt_sha256": "f5a53f1b066d5b6e6c2352f41cf6985e8e8356eaa3c9b36e6e101dcde0de23a1",
+        "changed_surfaces_sha256": "74e5ce5ebbbc0ae77f7dce67f68dda3b373103c08300aec324e829ae7e272f42",
+        "selected_rows": 35,
+        "changed_surfaces": 28
+      },
+      {
+        "target_owner": "openboa-ai/coffee-chat-roastery",
+        "task": "task-5",
+        "objective": "protected-roastery-contract",
+        "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
+        "generator_sha256": "110f1a2a00d8cd7095e79f6c090ffc833f62e3c39adf71790bf29b1e9d7338c7",
+        "objective_selection_sha256": "a5b0b6bc6547788799acbcd477cad6e5a8d7fe292f81800f5f4306d174b833e6",
+        "projection_sha256": "4e2179a95240af07eeb3f0c2917d1e08920957fa00642ca6f7d596a343812c87",
+        "changed_surface_classification_sha256": "834527ae63e61c441bf5c25d2744ebd64bd515f7a9a08c20f3da39ec71c3cd14",
+        "equality_receipt_sha256": "77248424451aaafae68a3da633d12f3cf34d479958ca17bf5f326ac1d62d69a6",
+        "execution_identity_receipt_sha256": "fb333f7675a0252d60d9b1f1dc12bb98565da73cabd1d270ef20f2aee01015b0",
+        "target_bootstrap_receipt_sha256": "f5a53f1b066d5b6e6c2352f41cf6985e8e8356eaa3c9b36e6e101dcde0de23a1",
+        "changed_surfaces_sha256": "475a1ab3c75264d4c77758afb8432657ee96596a9779f175b488530cd658b1dc",
+        "selected_rows": 1,
+        "changed_surfaces": 54
+      }
+    ]
   }
 }

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scope", "license", "attribution"],
+  "properties": {
+    "scope": {
+      "const": "roastery/beans/**"
+    },
+    "license": {
+      "const": "CC-BY-4.0"
+    },
+    "attribution": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "not": {
+        "const": "<OWNER_PROVIDED_ATTRIBUTION>"
+      }
+    }
+  }
+}

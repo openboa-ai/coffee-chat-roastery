@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "checkJs": true,
     "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
@@ -14,5 +15,11 @@
     "target": "ES2024",
     "types": ["node"]
   },
-  "include": [".github/**/*.mjs", "scripts/**/*.mjs", "tests/**/*.mjs"]
+  "include": [
+    ".github/**/*.mjs",
+    "scripts/**/*.mjs",
+    "src/**/*.ts",
+    "tests/**/*.mjs",
+    "tests/**/*.ts"
+  ]
 }
