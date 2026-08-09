@@ -7,6 +7,17 @@ const OFFICIAL_REPOSITORY = "https://github.com/openboa-ai/coffee-chat-roastery"
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
+const SPECIAL_USE_DNS_TLDS = new Set([
+    "alt",
+    "arpa",
+    "example",
+    "internal",
+    "invalid",
+    "local",
+    "localhost",
+    "onion",
+    "test",
+]);
 class ValidationError extends Error {
     code;
     constructor(code) {
@@ -124,11 +135,12 @@ function publicOrigin(value) {
         host.endsWith(".local")) {
         return false;
     }
+    const labels = host.split(".");
     return (isIP(host) === 0 &&
         host.length <= 253 &&
-        host
-            .split(".")
-            .every((label) => /^(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,61}[a-z0-9])$/u.test(label)));
+        labels.length >= 2 &&
+        !SPECIAL_USE_DNS_TLDS.has(labels.at(-1) ?? "") &&
+        labels.every((label) => /^(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,61}[a-z0-9])$/u.test(label)));
 }
 function parseBean(path) {
     const content = readFileSync(path);

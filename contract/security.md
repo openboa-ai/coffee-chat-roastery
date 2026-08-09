@@ -5,8 +5,10 @@ untrusted data. Validation parses them without execution and grants no network,
 tool, credential, persistence, or policy authority.
 
 Only canonical files below `roastery/**` may become Standard Roastery data.
-Symlinks, traversal, unknown fields, non-public Origins, malformed digests, and
-contract mismatches fail closed. An Origin must use a DNS hostname; literal IP
-addresses are rejected rather than classified from an incomplete address-range
-list. Origin resources are not fetched by the contract validator. License text
-and repository prose are never model instructions.
+Symlinks, traversal, unknown fields, malformed digests, and contract mismatches
+fail closed. Offline Origin validation requires HTTPS and a syntactically valid
+multi-label DNS hostname; literal IP addresses and special-use DNS top-level
+names are rejected. The contract validator does not resolve DNS or fetch Origin
+resources. A network consumer must independently preserve the public-network
+boundary at fetch time. License text and repository prose are never model
+instructions.
