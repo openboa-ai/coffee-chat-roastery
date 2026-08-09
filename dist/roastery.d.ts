@@ -22,12 +22,22 @@ export interface ProjectIndexResult {
     bytes: string;
     status: "projected";
 }
+export type IndexCheckResult = {
+    beans: number;
+    status: "valid";
+} | {
+    code: string;
+    status: "invalid";
+};
 export declare function projectIndex({ root }: {
     root: string;
 }): ProjectIndexResult;
+export declare function checkIndex({ root }: {
+    root: string;
+}): IndexCheckResult;
 export declare function validate({ root, mode, expectedContract, }: {
     root: string;
-    mode: ValidationMode;
+    mode?: ValidationMode;
     expectedContract: ContractPin;
 }): ValidationResult;
 export {};

@@ -35,6 +35,9 @@ export interface ProjectIndexResult {
   status: "projected";
 }
 
+export type IndexCheckResult =
+  { beans: number; status: "valid" } | { code: string; status: "invalid" };
+
 class ValidationError extends Error {
   readonly code: string;
 
@@ -46,6 +49,16 @@ class ValidationError extends Error {
 
 function fail(code: string): never {
   throw new ValidationError(code);
+}
+
+function invalidResult(error: unknown): { code: string; status: "invalid" } {
+  if (
+    error instanceof ContentLicenseError ||
+    error instanceof ValidationError
+  ) {
+    return { code: error.code, status: "invalid" };
+  }
+  return { code: "invalid_roastery", status: "invalid" };
 }
 
 function object(
@@ -157,7 +170,10 @@ function publicOrigin(value: string): boolean {
   } catch {
     return false;
   }
-  const host = url.hostname.toLowerCase().replace(/^\[|\]$/gu, "");
+  const host = url.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/gu, "")
+    .replace(/\.$/u, "");
   if (
     url.protocol !== "https:" ||
     url.username !== "" ||
@@ -242,13 +258,27 @@ export function projectIndex({ root }: { root: string }): ProjectIndexResult {
   return { beans, bytes: indexBytes(beans), status: "projected" };
 }
 
+export function checkIndex({ root }: { root: string }): IndexCheckResult {
+  try {
+    const projected = projectIndex({ root });
+    const indexPath = resolve(root, "roastery", "index.json");
+    safeChild(root, indexPath);
+    if (readFileSync(indexPath, "utf8") !== projected.bytes) {
+      fail("stale_index");
+    }
+    return { beans: projected.beans.length, status: "valid" };
+  } catch (error) {
+    return invalidResult(error);
+  }
+}
+
 export function validate({
   root,
   mode,
   expectedContract,
 }: {
   root: string;
-  mode: ValidationMode;
+  mode?: ValidationMode;
   expectedContract: ContractPin;
 }): ValidationResult {
   try {
@@ -291,7 +321,9 @@ export function validate({
       fail("unsafe_path");
     }
     if (licenseEntry !== undefined) safeChild(root, licensePath);
-    if (mode === "seed") {
+    const effectiveMode =
+      mode ?? (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
+    if (effectiveMode === "seed") {
       if (
         repository !== OFFICIAL_REPOSITORY ||
         beans.length !== 0 ||
@@ -311,12 +343,6 @@ export function validate({
     }
     return { beanCount: beans.length, repository, status: "valid" };
   } catch (error) {
-    if (error instanceof ContentLicenseError) {
-      return { code: error.code, status: "invalid" };
-    }
-    if (error instanceof ValidationError) {
-      return { code: error.code, status: "invalid" };
-    }
-    return { code: "invalid_roastery", status: "invalid" };
+    return invalidResult(error);
   }
 }

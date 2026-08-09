@@ -13,7 +13,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { projectIndex, renderContentLicense, validate } from "../dist/index.js";
+import {
+  checkIndex,
+  projectIndex,
+  renderContentLicense,
+  validate,
+} from "../dist/index.js";
 
 /** @type {import("../dist/index.js").ContractPin} */
 const contract = {
@@ -187,6 +192,8 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
 
     for (const unsafeOrigin of [
       "localhost",
+      "localhost.",
+      "printer.local.",
       "127.0.0.1",
       "0.0.0.0",
       "100.64.0.1",
@@ -235,6 +242,10 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
     unlinkSync(indexPath);
     symlinkSync(externalTarget, indexPath);
     assert.equal(projectIndex({ root }).bytes, expectedIndex);
+    assert.deepEqual(checkIndex({ root }), {
+      code: "unsafe_path",
+      status: "invalid",
+    });
     assert.equal(readFileSync(externalTarget, "utf8"), "unchanged\n");
   } finally {
     rmSync(root, { force: true, recursive: true });

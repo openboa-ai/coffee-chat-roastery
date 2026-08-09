@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -34,6 +41,16 @@ test("the CLI exposes the three contract commands and fails closed without write
       assert.equal(JSON.parse(result.stdout).status, "invalid");
       assert.equal(readFileSync(sentinel, "utf8"), "unchanged\n");
     }
+    const externalIndex = join(sandbox, "external-index.json");
+    writeFileSync(externalIndex, '{\n  "beans": []\n}\n');
+    mkdirSync(join(sandbox, "roastery"));
+    symlinkSync(externalIndex, join(sandbox, "roastery", "index.json"));
+    const linkedIndex = run("project-index", "--root", sandbox, "--check");
+    assert.equal(linkedIndex.status, 1);
+    assert.deepEqual(JSON.parse(linkedIndex.stdout), {
+      code: "unsafe_path",
+      status: "invalid",
+    });
     const unknown = run("publication-check");
     assert.equal(unknown.status, 1);
     assert.match(unknown.stderr, /unknown command/u);

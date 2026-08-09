@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { computeContractDigest, projectIndex, validate, } from "./index.js";
+import { checkIndex, computeContractDigest, projectIndex, validate, } from "./index.js";
 function value(flag) {
     const index = process.argv.indexOf(flag);
     return index >= 0 ? process.argv[index + 1] : undefined;
@@ -15,18 +14,6 @@ function root() {
     if (!candidate)
         throw new Error("missing_root");
     return resolve(candidate);
-}
-function inferredMode(repositoryRoot) {
-    try {
-        const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, "roastery", "roastery.json"), "utf8"));
-        return manifest.repository ===
-            "https://github.com/openboa-ai/coffee-chat-roastery"
-            ? "seed"
-            : "initialized";
-    }
-    catch {
-        return "initialized";
-    }
 }
 function expectedContract() {
     const commit = value("--contract-commit");
@@ -48,7 +35,6 @@ try {
         const repositoryRoot = root();
         const result = validate({
             root: repositoryRoot,
-            mode: inferredMode(repositoryRoot),
             expectedContract: expectedContract(),
         });
         output(result, result.status === "valid");
@@ -56,14 +42,12 @@ try {
     else if (command === "project-index") {
         const repositoryRoot = root();
         const check = process.argv.includes("--check");
-        const projected = projectIndex({ root: repositoryRoot });
         if (check) {
-            const current = readFileSync(resolve(repositoryRoot, "roastery", "index.json"), "utf8");
-            output(current === projected.bytes
-                ? { beans: projected.beans.length, status: "valid" }
-                : { code: "stale_index", status: "invalid" }, current === projected.bytes);
+            const result = checkIndex({ root: repositoryRoot });
+            output(result, result.status === "valid");
         }
         else {
+            const projected = projectIndex({ root: repositoryRoot });
             output(projected, true);
         }
     }

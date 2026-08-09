@@ -17,6 +17,13 @@ class ValidationError extends Error {
 function fail(code) {
     throw new ValidationError(code);
 }
+function invalidResult(error) {
+    if (error instanceof ContentLicenseError ||
+        error instanceof ValidationError) {
+        return { code: error.code, status: "invalid" };
+    }
+    return { code: "invalid_roastery", status: "invalid" };
+}
 function object(value, keys, code) {
     if (typeof value !== "object" ||
         value === null ||
@@ -104,7 +111,10 @@ function publicOrigin(value) {
     catch {
         return false;
     }
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/gu, "");
+    const host = url.hostname
+        .toLowerCase()
+        .replace(/^\[|\]$/gu, "")
+        .replace(/\.$/u, "");
     if (url.protocol !== "https:" ||
         url.username !== "" ||
         url.password !== "" ||
@@ -191,6 +201,20 @@ export function projectIndex({ root }) {
     const beans = scanBeans(root);
     return { beans, bytes: indexBytes(beans), status: "projected" };
 }
+export function checkIndex({ root }) {
+    try {
+        const projected = projectIndex({ root });
+        const indexPath = resolve(root, "roastery", "index.json");
+        safeChild(root, indexPath);
+        if (readFileSync(indexPath, "utf8") !== projected.bytes) {
+            fail("stale_index");
+        }
+        return { beans: projected.beans.length, status: "valid" };
+    }
+    catch (error) {
+        return invalidResult(error);
+    }
+}
 export function validate({ root, mode, expectedContract, }) {
     try {
         const roasteryRoot = resolve(root, "roastery");
@@ -222,7 +246,8 @@ export function validate({ root, mode, expectedContract, }) {
         }
         if (licenseEntry !== undefined)
             safeChild(root, licensePath);
-        if (mode === "seed") {
+        const effectiveMode = mode ?? (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
+        if (effectiveMode === "seed") {
             if (repository !== OFFICIAL_REPOSITORY ||
                 beans.length !== 0 ||
                 licenseEntry !== undefined) {
@@ -241,12 +266,6 @@ export function validate({ root, mode, expectedContract, }) {
         return { beanCount: beans.length, repository, status: "valid" };
     }
     catch (error) {
-        if (error instanceof ContentLicenseError) {
-            return { code: error.code, status: "invalid" };
-        }
-        if (error instanceof ValidationError) {
-            return { code: error.code, status: "invalid" };
-        }
-        return { code: "invalid_roastery", status: "invalid" };
+        return invalidResult(error);
     }
 }

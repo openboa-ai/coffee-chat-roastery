@@ -7,9 +7,11 @@ export {
 } from "./content-license.js";
 export { computeContractDigest } from "./contract-digest.js";
 export {
+  checkIndex,
   projectIndex,
   validate,
   type ContractPin,
+  type IndexCheckResult,
   type IndexEntry,
   type ProjectIndexResult,
   type ValidationMode,
