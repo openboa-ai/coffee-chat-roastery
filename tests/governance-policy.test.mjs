@@ -145,18 +145,15 @@ function assertTrustedAuthorGate(step, label) {
     step.env,
     {
       AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-      PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
     },
     label,
   );
 
   for (const scenario of [
-    { association: "OWNER", login: "someone", accepted: true },
-    { association: "MEMBER", login: "someone", accepted: true },
-    { association: "CONTRIBUTOR", login: "openboa", accepted: true },
-    { association: "NONE", login: "openboa", accepted: true },
-    { association: "CONTRIBUTOR", login: "someone", accepted: false },
-    { association: "NONE", login: "Openboa", accepted: false },
+    { association: "OWNER", accepted: true },
+    { association: "MEMBER", accepted: true },
+    { association: "CONTRIBUTOR", accepted: false },
+    { association: "NONE", accepted: false },
   ]) {
     const result = spawnSync("bash", ["-euo", "pipefail", "-c", step.run], {
       cwd: root,
@@ -164,13 +161,12 @@ function assertTrustedAuthorGate(step, label) {
       env: {
         ...process.env,
         AUTHOR_ASSOCIATION: scenario.association,
-        PR_AUTHOR_LOGIN: scenario.login,
       },
     });
     assert.equal(
       result.status === 0,
       scenario.accepted,
-      `${label}: ${scenario.association}/${scenario.login}`,
+      `${label}: ${scenario.association}`,
     );
   }
 }
@@ -563,7 +559,7 @@ test("merge policy uses trusted-author auto-merge with ownership routing", () =>
     verified_members_only: true,
   });
   assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
-  assert.deepEqual(policy.eligible_author_logins, ["openboa"]);
+  assert.equal("eligible_author_logins" in policy, false);
   assert.deepEqual(policy.required_events, ["merge_group", "pull_request"]);
   assert.deepEqual(policy.required_checks, [
     { context: "Roastery required", integration_id: 15368 },
