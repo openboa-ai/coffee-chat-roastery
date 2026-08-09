@@ -124,6 +124,76 @@ describe("protected contract bundle", () => {
     }
   });
 
+  test("keeps the Bean schema and validator aligned for public Origins", async () => {
+    const cases = [
+      {
+        name: "public DNS Origin",
+        origin: "https://Example.com:443/source?id=1",
+        expected: true,
+      },
+      {
+        name: "non-HTTPS Origin",
+        origin: "http://example.com/source",
+        expected: false,
+      },
+      {
+        name: "credential-bearing Origin",
+        origin: "https://owner@example.com/source",
+        expected: false,
+      },
+      {
+        name: "IPv4 Origin",
+        origin: "https://127.0.0.1/private",
+        expected: false,
+      },
+      {
+        name: "IPv6 Origin",
+        origin: "https://[::1]/private",
+        expected: false,
+      },
+      {
+        name: "single-label Origin",
+        origin: "https://intranet/private",
+        expected: false,
+      },
+      {
+        name: "special-use Origin",
+        origin: "https://service.InTeRnAl/private",
+        expected: false,
+      },
+    ] as const;
+    const id = "01890f3a-2b00-7000-8000-000000000001";
+    const schema = JSON.parse(
+      readFileSync(
+        resolve(
+          repositoryRoot,
+          "contract/schemas/bean-frontmatter.schema.json",
+        ),
+        "utf8",
+      ),
+    );
+    const validateSchema = new Ajv2020.default({
+      allErrors: true,
+      strict: true,
+    }).compile(schema);
+    const { validateBeanFile } = await import("../src/validation/bean.js");
+
+    for (const { name, origin, expected } of cases) {
+      const beanBytes = Buffer.from(
+        `---\nid: ${id}\norigins:\n  - ${origin}\n---\nBody.\n`,
+      );
+
+      expect(
+        validateSchema({ id, origins: [origin] }),
+        `${name}: ${JSON.stringify(validateSchema.errors)}`,
+      ).toBe(expected);
+      expect(
+        validateBeanFile(`roastery/beans/${id}.md`, beanBytes).status,
+        name,
+      ).toBe(expected ? "valid" : "invalid");
+    }
+  });
+
   test("publishes a manifest whose declared files exactly match the bundle", () => {
     const contract = JSON.parse(
       readFileSync(resolve(repositoryRoot, "contract/contract.json"), "utf8"),

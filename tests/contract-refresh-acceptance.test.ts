@@ -9,6 +9,7 @@ import {
 import { execFileSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { deflateSync } from "node:zlib";
 
 import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, test } from "vitest";
@@ -362,6 +363,86 @@ describe("protected contract refresh", () => {
       evaluateContractRefreshCandidate(inputFrom(fixture)),
     ).resolves.toMatchObject({ status: "rejected" });
     expect(existsSync(sentinel)).toBe(false);
+  });
+
+  test("rejects contract bytes stored under an object id with a different hash", async () => {
+    const fixture = remember(createSyntheticContractRefreshFixture());
+    const root = fixture.newBundle.root;
+    const contractPath = resolve(root, "contract/publication.md");
+    const corruptedBytes = Buffer.concat([
+      readFileSync(contractPath),
+      Buffer.from("\nCorrupt loose-object bytes.\n"),
+    ]);
+    writeFileSync(contractPath, corruptedBytes);
+    const { digestContractBundle } = await import("../src/contract/digest.js");
+    fixture.newBundle.digest = await digestContractBundle(root);
+    const pinPath = resolve(fixture.forkRoot, ".coffee-chat/contract-pin.json");
+    const pin = JSON.parse(readFileSync(pinPath, "utf8"));
+    pin.digest = fixture.newBundle.digest;
+    writeFileSync(pinPath, `${JSON.stringify(pin, null, 2)}\n`);
+    execFileSync("git", ["-C", fixture.forkRoot, "add", pinPath]);
+    execFileSync("git", [
+      "-C",
+      fixture.forkRoot,
+      "commit",
+      "--quiet",
+      "-m",
+      "pin corrupt bundle digest",
+    ]);
+    fixture.candidateHead = execFileSync(
+      "git",
+      ["-C", fixture.forkRoot, "rev-parse", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
+    fixture.reviews = [
+      {
+        reviewer: fixture.owner,
+        headSha: fixture.candidateHead,
+        state: "approved",
+      },
+    ];
+
+    const objectId = execFileSync(
+      "git",
+      [
+        "-C",
+        root,
+        "rev-parse",
+        `${fixture.newBundle.commit}:contract/publication.md`,
+      ],
+      { encoding: "utf8" },
+    ).trim();
+    const gitDirectory = execFileSync(
+      "git",
+      ["-C", root, "rev-parse", "--git-dir"],
+      { encoding: "utf8" },
+    ).trim();
+    const looseObjectPath = resolve(
+      root,
+      gitDirectory,
+      "objects",
+      objectId.slice(0, 2),
+      objectId.slice(2),
+    );
+    chmodSync(looseObjectPath, 0o600);
+    writeFileSync(
+      looseObjectPath,
+      deflateSync(
+        Buffer.concat([
+          Buffer.from(`blob ${corruptedBytes.length}\0`),
+          corruptedBytes,
+        ]),
+      ),
+    );
+
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+    await expect(
+      evaluateContractRefreshCandidate(inputFrom(fixture)),
+    ).resolves.toEqual({
+      status: "rejected",
+      reason: "bundle_byte_mismatch",
+    });
   });
 
   test("ignores repository replacement refs when resolving declared commits", async () => {
