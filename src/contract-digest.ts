@@ -1,10 +1,44 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
 interface ContractFile {
   content: Buffer;
   path: Buffer;
+}
+
+function readVerifiedFile(path: string): Buffer {
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(
+      path,
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+    );
+    const opened = fstatSync(descriptor);
+    const current = lstatSync(path);
+    if (
+      !opened.isFile() ||
+      !current.isFile() ||
+      current.isSymbolicLink() ||
+      opened.dev !== current.dev ||
+      opened.ino !== current.ino
+    ) {
+      throw new Error("unsafe_contract_entry");
+    }
+    return readFileSync(descriptor);
+  } catch {
+    throw new Error("unsafe_contract_entry");
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
 }
 
 function contractFiles(root: string, current: string): ContractFile[] {
@@ -16,7 +50,7 @@ function contractFiles(root: string, current: string): ContractFile[] {
     if (!stat.isFile()) throw new Error("unsafe_contract_entry");
     return [
       {
-        content: readFileSync(absolute),
+        content: readVerifiedFile(absolute),
         path: Buffer.from(
           relative(root, absolute).split(sep).join("/"),
           "utf8",

@@ -14,6 +14,21 @@ export class ContentLicenseError extends Error {
 function invalid(message) {
     throw new ContentLicenseError("invalid_content_license", message);
 }
+function hasUnpairedSurrogate(value) {
+    for (let index = 0; index < value.length; index += 1) {
+        const unit = value.charCodeAt(index);
+        if (unit >= 0xd800 && unit <= 0xdbff) {
+            const next = value.charCodeAt(index + 1);
+            if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff)
+                return true;
+            index += 1;
+        }
+        else if (unit >= 0xdc00 && unit <= 0xdfff) {
+            return true;
+        }
+    }
+    return false;
+}
 function normalizeAttribution(input) {
     if (typeof input !== "string")
         invalid("attribution must be a string");
@@ -24,6 +39,7 @@ function normalizeAttribution(input) {
     if (length < 1 || length > 120)
         invalid("attribution length is outside 1-120");
     if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(normalized) ||
+        hasUnpairedSurrogate(normalized) ||
         normalized === ATTRIBUTION_PLACEHOLDER ||
         /^<[^>]+>$/u.test(normalized)) {
         invalid("attribution contains a forbidden value");

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
 import {
   cpSync,
   mkdtempSync,
@@ -9,6 +10,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import test from "node:test";
@@ -72,11 +74,16 @@ test("the immutable bundle renders one fixed, round-trippable Bean license", () 
   );
   assert.deepEqual(parseContentLicense(rendered.content), rendered);
 
+  const emoji = renderContentLicense("Coffee Owner ☕");
+  assert.deepEqual(parseContentLicense(emoji.content), emoji);
+
   for (const attribution of [
     "",
     " owner",
     "owner ",
     "owner\nname",
+    "owner\ud800",
+    "owner\udc00",
     "<OWNER_PROVIDED_ATTRIBUTION>",
     "x".repeat(121),
   ]) {
@@ -111,6 +118,8 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
 
   const sandbox = mkdtempSync(join(tmpdir(), "roastery-contract-"));
   const linked = mkdtempSync(join(tmpdir(), "roastery-contract-link-"));
+  const raced = mkdtempSync(join(tmpdir(), "roastery-contract-race-"));
+  const external = mkdtempSync(join(tmpdir(), "roastery-contract-external-"));
   try {
     cpSync(contractRoot, join(sandbox, "contract"), { recursive: true });
     assert.equal(computeContractDigest(sandbox), expected);
@@ -125,8 +134,43 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
       () => computeContractDigest(linked),
       /unsafe_contract_entry/u,
     );
+
+    cpSync(contractRoot, join(raced, "contract"), { recursive: true });
+    const racedEntry = join(raced, "contract", "security.md");
+    const externalEntry = join(external, "outside.md");
+    writeFileSync(externalEntry, "outside contract bytes\n");
+    const originalLstat = fs.lstatSync;
+    let swapped = false;
+    Object.defineProperty(fs, "lstatSync", {
+      configurable: true,
+      value: function lstatAndSwap(path, options) {
+        const stat = originalLstat.call(fs, path, options);
+        if (!swapped && String(path) === racedEntry) {
+          swapped = true;
+          fs.unlinkSync(racedEntry);
+          fs.symlinkSync(externalEntry, racedEntry);
+        }
+        return stat;
+      },
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(
+        () => computeContractDigest(raced),
+        /unsafe_contract_entry/u,
+      );
+    } finally {
+      Object.defineProperty(fs, "lstatSync", {
+        configurable: true,
+        value: originalLstat,
+      });
+      syncBuiltinESMExports();
+    }
   } finally {
+    syncBuiltinESMExports();
     rmSync(sandbox, { force: true, recursive: true });
     rmSync(linked, { force: true, recursive: true });
+    rmSync(raced, { force: true, recursive: true });
+    rmSync(external, { force: true, recursive: true });
   }
 });
