@@ -108,8 +108,7 @@ function changedPaths(root, baseSha, headSha) {
     "--name-only",
     "--diff-filter=ACMRD",
     "-z",
-    baseSha,
-    headSha,
+    `${baseSha}...${headSha}`,
     "--",
   ])
     .toString("utf8")

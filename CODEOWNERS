@@ -6,6 +6,7 @@
 /SECURITY.md @openboa
 /package.json @openboa
 /package-lock.json @openboa
+/tsconfig.json @openboa
 /scripts/check-migration-receipt.mjs @openboa
 /scripts/build-contract-refresh-receipt.mjs @openboa
 /scripts/check-publication.mjs @openboa

@@ -26,6 +26,7 @@
     "/SECURITY.md",
     "/package.json",
     "/package-lock.json",
+    "/tsconfig.json",
     "/scripts/check-migration-receipt.mjs",
     "/scripts/build-contract-refresh-receipt.mjs",
     "/scripts/check-publication.mjs",
