@@ -230,7 +230,23 @@ if (aggregateJobs.length !== 1) {
   }
 }
 
-const qualityRuns = (workflows.get("quality.yml")?.jobs?.quality?.steps ?? [])
+const qualitySteps = workflows.get("quality.yml")?.jobs?.quality?.steps ?? [];
+const trustedAuthorStep = qualitySteps.find(
+  (step) => step.name === "Verify trusted pull request author",
+);
+if (
+  trustedAuthorStep?.if !== "github.event_name == 'pull_request'" ||
+  !sameRecord(trustedAuthorStep.env, {
+    AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+  }) ||
+  !String(trustedAuthorStep.run).includes("OWNER|MEMBER") ||
+  String(trustedAuthorStep.run).includes("COLLABORATOR") ||
+  !String(trustedAuthorStep.run).includes("exit 1")
+) {
+  fail("quality.yml must reject pull requests from non-members");
+}
+const qualityRuns = qualitySteps
+  .filter((step) => step.name !== "Verify trusted pull request author")
   .filter((step) => typeof step.run === "string")
   .map((step) => step.run.trim());
 const expectedQualityRuns = [
@@ -484,9 +500,10 @@ if (mergePolicy) {
   if (
     mergePolicy.repository_role !== "roastery" ||
     mergePolicy.merge_method !== "squash" ||
-    mergePolicy.auto_merge?.ordinary !== true ||
-    mergePolicy.auto_merge?.protected_after_code_owner_approval !== true ||
-    "protected" in mergePolicy.auto_merge
+    JSON.stringify(mergePolicy.auto_merge) !==
+      JSON.stringify({ required_checks: true, verified_members_only: true }) ||
+    JSON.stringify(mergePolicy.eligible_author_associations) !==
+      JSON.stringify(["OWNER", "MEMBER"])
   ) {
     fail("merge policy does not describe the Roastery merge boundary");
   }

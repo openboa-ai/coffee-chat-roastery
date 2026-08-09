@@ -18,6 +18,21 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Verify trusted pull request author
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHOR_ASSOCIATION:
+            ${{ github.event.pull_request.author_association }}
+        run: |
+          case "$AUTHOR_ASSOCIATION" in
+            OWNER|MEMBER)
+              printf '%s\n' 'author=trusted_member'
+              ;;
+            *)
+              printf '%s\n' 'author=untrusted' >&2
+              exit 1
+              ;;
+          esac
       - name: Check out repository without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
