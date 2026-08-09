@@ -94,13 +94,17 @@ function readJson(
   keys: string[],
   code: string,
 ): Record<string, unknown> {
+  let source: string;
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
+    source = readFileSync(path, "utf8");
+    parsed = JSON.parse(source);
   } catch {
     fail(code);
   }
-  return object(parsed, keys, code);
+  const result = object(parsed, keys, code);
+  if (source !== `${JSON.stringify(parsed, null, 2)}\n`) fail(code);
+  return result;
 }
 
 function normalizeRepository(value: unknown): string {
@@ -226,7 +230,11 @@ function parseBean(path: string): { content: Buffer; id: string } {
     const origins = new Set<string>();
     for (const line of header) {
       const origin = line.slice(4);
-      if (!line.startsWith("  - ") || !publicOrigin(origin)) {
+      if (
+        !line.startsWith("  - ") ||
+        origin.trim() !== origin ||
+        !publicOrigin(origin)
+      ) {
         fail("invalid_origin");
       }
       if (origins.has(origin)) fail("duplicate_origin");

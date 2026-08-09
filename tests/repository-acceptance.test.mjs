@@ -86,6 +86,34 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
       { code: "unsafe_path", status: "invalid" },
     );
     unlinkSync(join(danglingBeans, "roastery", "beans"));
+    unlinkSync(join(danglingBeans, "roastery", "roastery.json"));
+    writeFileSync(
+      join(danglingBeans, "roastery", "roastery.json"),
+      `{
+  "repository": "https://github.com/attacker/coffee-chat-roastery",
+  "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
+  "contract": ${JSON.stringify(contract)}
+}\n`,
+    );
+    assert.deepEqual(
+      validate({
+        root: danglingBeans,
+        mode: "seed",
+        expectedContract: contract,
+      }),
+      { code: "invalid_roastery", status: "invalid" },
+    );
+    writeFileSync(
+      join(danglingBeans, "roastery", "roastery.json"),
+      `${JSON.stringify(
+        {
+          repository: "https://github.com/openboa-ai/coffee-chat-roastery",
+          contract,
+        },
+        null,
+        2,
+      )}\n`,
+    );
     symlinkSync(
       join(danglingBeans, "missing-license"),
       join(danglingBeans, "roastery", "CONTENT_LICENSE.md"),
@@ -233,6 +261,20 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
       validate({ root, mode: "initialized", expectedContract: contract }),
       {
         code: "duplicate_origin",
+        status: "invalid",
+      },
+    );
+    writeFileSync(
+      beanPath,
+      bean.replace(
+        "  - https://example.com/source\n",
+        "  - https://example.com/source\n  - https://example.com/source \n",
+      ),
+    );
+    assert.deepEqual(
+      validate({ root, mode: "initialized", expectedContract: contract }),
+      {
+        code: "invalid_origin",
         status: "invalid",
       },
     );

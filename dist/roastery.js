@@ -46,14 +46,19 @@ function object(value, keys, code) {
     return value;
 }
 function readJson(path, keys, code) {
+    let source;
     let parsed;
     try {
-        parsed = JSON.parse(readFileSync(path, "utf8"));
+        source = readFileSync(path, "utf8");
+        parsed = JSON.parse(source);
     }
     catch {
         fail(code);
     }
-    return object(parsed, keys, code);
+    const result = object(parsed, keys, code);
+    if (source !== `${JSON.stringify(parsed, null, 2)}\n`)
+        fail(code);
+    return result;
 }
 function normalizeRepository(value) {
     if (typeof value !== "string")
@@ -164,7 +169,9 @@ function parseBean(path) {
         const origins = new Set();
         for (const line of header) {
             const origin = line.slice(4);
-            if (!line.startsWith("  - ") || !publicOrigin(origin)) {
+            if (!line.startsWith("  - ") ||
+                origin.trim() !== origin ||
+                !publicOrigin(origin)) {
                 fail("invalid_origin");
             }
             if (origins.has(origin))
