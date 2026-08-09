@@ -1,11 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  realpathSync,
-} from "node:fs";
+import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
 
@@ -260,8 +254,10 @@ export function validate({
   try {
     const roasteryRoot = resolve(root, "roastery");
     safeChild(root, roasteryRoot);
+    const manifestPath = resolve(roasteryRoot, "roastery.json");
+    safeChild(root, manifestPath);
     const manifest = readJson(
-      resolve(roasteryRoot, "roastery.json"),
+      manifestPath,
       ["contract", "repository"],
       "invalid_roastery",
     );
@@ -287,11 +283,19 @@ export function validate({
     }
 
     const licensePath = resolve(roasteryRoot, "CONTENT_LICENSE.md");
+    const licenseEntry = lstatSync(licensePath, { throwIfNoEntry: false });
+    if (
+      licenseEntry !== undefined &&
+      (!licenseEntry.isFile() || licenseEntry.isSymbolicLink())
+    ) {
+      fail("unsafe_path");
+    }
+    if (licenseEntry !== undefined) safeChild(root, licensePath);
     if (mode === "seed") {
       if (
         repository !== OFFICIAL_REPOSITORY ||
         beans.length !== 0 ||
-        existsSync(licensePath)
+        licenseEntry !== undefined
       ) {
         fail("invalid_seed");
       }
@@ -302,8 +306,7 @@ export function validate({
       ) {
         fail("invalid_repository_identity");
       }
-      if (!existsSync(licensePath)) fail("invalid_content_license");
-      safeChild(root, licensePath);
+      if (licenseEntry === undefined) fail("invalid_content_license");
       parseContentLicense(readFileSync(licensePath, "utf8"));
     }
     return { beanCount: beans.length, repository, status: "valid" };

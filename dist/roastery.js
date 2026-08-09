@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, } from "node:fs";
+import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
@@ -195,7 +195,9 @@ export function validate({ root, mode, expectedContract, }) {
     try {
         const roasteryRoot = resolve(root, "roastery");
         safeChild(root, roasteryRoot);
-        const manifest = readJson(resolve(roasteryRoot, "roastery.json"), ["contract", "repository"], "invalid_roastery");
+        const manifestPath = resolve(roasteryRoot, "roastery.json");
+        safeChild(root, manifestPath);
+        const manifest = readJson(manifestPath, ["contract", "repository"], "invalid_roastery");
         const repository = normalizeRepository(manifest.repository);
         const actualContract = contractPin(manifest.contract);
         const trustedContract = contractPin(expectedContract);
@@ -213,10 +215,17 @@ export function validate({ root, mode, expectedContract, }) {
             fail("stale_index");
         }
         const licensePath = resolve(roasteryRoot, "CONTENT_LICENSE.md");
+        const licenseEntry = lstatSync(licensePath, { throwIfNoEntry: false });
+        if (licenseEntry !== undefined &&
+            (!licenseEntry.isFile() || licenseEntry.isSymbolicLink())) {
+            fail("unsafe_path");
+        }
+        if (licenseEntry !== undefined)
+            safeChild(root, licensePath);
         if (mode === "seed") {
             if (repository !== OFFICIAL_REPOSITORY ||
                 beans.length !== 0 ||
-                existsSync(licensePath)) {
+                licenseEntry !== undefined) {
                 fail("invalid_seed");
             }
         }
@@ -225,9 +234,8 @@ export function validate({ root, mode, expectedContract, }) {
                 !repository.endsWith("/coffee-chat")) {
                 fail("invalid_repository_identity");
             }
-            if (!existsSync(licensePath))
+            if (licenseEntry === undefined)
                 fail("invalid_content_license");
-            safeChild(root, licensePath);
             parseContentLicense(readFileSync(licensePath, "utf8"));
         }
         return { beanCount: beans.length, repository, status: "valid" };

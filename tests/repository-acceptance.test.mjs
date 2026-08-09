@@ -80,6 +80,30 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
       }),
       { code: "unsafe_path", status: "invalid" },
     );
+    unlinkSync(join(danglingBeans, "roastery", "beans"));
+    symlinkSync(
+      join(danglingBeans, "missing-license"),
+      join(danglingBeans, "roastery", "CONTENT_LICENSE.md"),
+    );
+    assert.deepEqual(
+      validate({
+        root: danglingBeans,
+        mode: "seed",
+        expectedContract: contract,
+      }),
+      { code: "unsafe_path", status: "invalid" },
+    );
+    unlinkSync(join(danglingBeans, "roastery", "CONTENT_LICENSE.md"));
+    unlinkSync(join(danglingBeans, "roastery", "roastery.json"));
+    symlinkSync("index.json", join(danglingBeans, "roastery", "roastery.json"));
+    assert.deepEqual(
+      validate({
+        root: danglingBeans,
+        mode: "seed",
+        expectedContract: contract,
+      }),
+      { code: "unsafe_path", status: "invalid" },
+    );
     assert.deepEqual(
       validate({
         root: owner,
