@@ -7,6 +7,7 @@
 /package.json @openboa
 /package-lock.json @openboa
 /tsconfig.json @openboa
+/tsconfig.build.json @openboa
 /scripts/** @openboa
 /contract/** @openboa
 /roastery/CONTENT_LICENSE.md @openboa
