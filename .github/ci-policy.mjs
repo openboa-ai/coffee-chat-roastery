@@ -76,14 +76,14 @@ function validateTrustedAuthorStep(step, label) {
     step.if !== "github.event_name == 'pull_request'" ||
     !sameRecord(step.env, {
       AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-      PR_AUTHOR_LOGIN: "${{ github.event.pull_request.user.login }}",
     }) ||
     !String(step.run).includes("OWNER|MEMBER") ||
-    !String(step.run).includes("if [ \"$PR_AUTHOR_LOGIN\" = 'openboa' ]") ||
+    String(step.run).includes("PR_AUTHOR_LOGIN") ||
+    String(step.run).includes("openboa") ||
     String(step.run).includes("COLLABORATOR") ||
     !String(step.run).includes("exit 1")
   ) {
-    fail(`${label} must admit only members or the exact official login`);
+    fail(`${label} must admit only organization owners or members`);
   }
 }
 
@@ -545,8 +545,7 @@ if (mergePolicy) {
       JSON.stringify({ required_checks: true, verified_members_only: true }) ||
     JSON.stringify(mergePolicy.eligible_author_associations) !==
       JSON.stringify(["OWNER", "MEMBER"]) ||
-    JSON.stringify(mergePolicy.eligible_author_logins) !==
-      JSON.stringify(["openboa"])
+    "eligible_author_logins" in mergePolicy
   ) {
     fail("merge policy does not describe the Roastery merge boundary");
   }
