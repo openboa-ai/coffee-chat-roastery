@@ -23,14 +23,16 @@ contract pin; this contract commit intentionally cannot pin itself.
 ## Commands
 
 ```sh
-roastery validate --root <repository> --format json
+roastery validate --root <repository> --contract-commit <sha> --contract-digest <sha256> --format json
 roastery project-index --root <repository> [--check]
 roastery contract-digest --root <repository> --format json
 ```
 
-`validate` and `project-index --check` are read-only. `project-index` without
-`--check` writes only the deterministic `roastery/index.json`. Every command
-returns structured JSON and fails closed on invalid or unsafe state.
+All commands are read-only. `validate` requires the trusted contract commit and
+digest instead of accepting a repository's self-declared tuple. `project-index`
+emits canonical bytes for a trusted caller to place in a reviewed change;
+`--check` compares them with the current index. Every command returns structured
+JSON and fails closed on invalid or unsafe state.
 
 The package API exports the same canonical content-license renderer/parser,
 contract digest, validator, and index projector used by the CLI. The bundle

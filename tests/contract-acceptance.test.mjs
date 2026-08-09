@@ -6,10 +6,11 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import test from "node:test";
 
 import {
@@ -26,7 +27,12 @@ function regularFiles(root, current = root) {
     const path = join(current, entry.name);
     if (entry.isDirectory()) return regularFiles(root, path);
     if (!entry.isFile()) throw new Error(`unexpected_contract_entry:${path}`);
-    return [{ path, relativePath: relative(root, path) }];
+    return [
+      {
+        path,
+        relativePath: relative(root, path).split(sep).join("/"),
+      },
+    ];
   });
 }
 
@@ -104,6 +110,7 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
   assert.equal(computeContractDigest(repositoryRoot), expected);
 
   const sandbox = mkdtempSync(join(tmpdir(), "roastery-contract-"));
+  const linked = mkdtempSync(join(tmpdir(), "roastery-contract-link-"));
   try {
     cpSync(contractRoot, join(sandbox, "contract"), { recursive: true });
     assert.equal(computeContractDigest(sandbox), expected);
@@ -112,7 +119,14 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
       `${readFileSync(join(contractRoot, "security.md"), "utf8")}\n`,
     );
     assert.notEqual(computeContractDigest(sandbox), expected);
+
+    symlinkSync(contractRoot, join(linked, "contract"));
+    assert.throws(
+      () => computeContractDigest(linked),
+      /unsafe_contract_entry/u,
+    );
   } finally {
     rmSync(sandbox, { force: true, recursive: true });
+    rmSync(linked, { force: true, recursive: true });
   }
 });

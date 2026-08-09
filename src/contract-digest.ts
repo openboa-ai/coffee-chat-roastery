@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readdirSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 
 interface ContractFile {
   content: Buffer;
@@ -17,7 +17,10 @@ function contractFiles(root: string, current: string): ContractFile[] {
     return [
       {
         content: readFileSync(absolute),
-        path: Buffer.from(relative(root, absolute), "utf8"),
+        path: Buffer.from(
+          relative(root, absolute).split(sep).join("/"),
+          "utf8",
+        ),
       },
     ];
   });
@@ -33,6 +36,9 @@ export function computeContractDigest(
   repositoryRoot: string,
 ): `sha256:${string}` {
   const contractRoot = resolve(repositoryRoot, "contract");
+  if (lstatSync(contractRoot).isSymbolicLink()) {
+    throw new Error("unsafe_contract_entry");
+  }
   const files = contractFiles(contractRoot, contractRoot).sort((left, right) =>
     left.path.compare(right.path),
   );

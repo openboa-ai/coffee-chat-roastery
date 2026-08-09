@@ -19,15 +19,15 @@ export type ValidationResult = {
 };
 export interface ProjectIndexResult {
     beans: IndexEntry[];
+    bytes: string;
     status: "projected";
-    wrote: boolean;
 }
-export declare function projectIndex({ root, write, }: {
+export declare function projectIndex({ root }: {
     root: string;
-    write?: boolean;
 }): ProjectIndexResult;
-export declare function validate({ root, mode, }: {
+export declare function validate({ root, mode, expectedContract, }: {
     root: string;
     mode: ValidationMode;
+    expectedContract: ContractPin;
 }): ValidationResult;
 export {};

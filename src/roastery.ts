@@ -1,13 +1,10 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   lstatSync,
   readFileSync,
   readdirSync,
   realpathSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
@@ -40,8 +37,8 @@ export type ValidationResult =
 
 export interface ProjectIndexResult {
   beans: IndexEntry[];
+  bytes: string;
   status: "projected";
-  wrote: boolean;
 }
 
 class ValidationError extends Error {
@@ -214,10 +211,14 @@ function parseBean(path: string): { content: Buffer; id: string } {
   if (header.length > 0) {
     if (header.shift() !== "origins:" || header.length === 0)
       fail("invalid_bean");
+    const origins = new Set<string>();
     for (const line of header) {
-      if (!line.startsWith("  - ") || !publicOrigin(line.slice(4))) {
+      const origin = line.slice(4);
+      if (!line.startsWith("  - ") || !publicOrigin(origin)) {
         fail("invalid_origin");
       }
+      if (origins.has(origin)) fail("duplicate_origin");
+      origins.add(origin);
     }
   }
   if (body.trim().length === 0) fail("invalid_bean");
@@ -256,43 +257,19 @@ function indexBytes(beans: IndexEntry[]): string {
   return `${JSON.stringify({ beans }, null, 2)}\n`;
 }
 
-export function projectIndex({
-  root,
-  write = false,
-}: {
-  root: string;
-  write?: boolean;
-}): ProjectIndexResult {
+export function projectIndex({ root }: { root: string }): ProjectIndexResult {
   const beans = scanBeans(root);
-  if (write) {
-    const roasteryRoot = resolve(root, "roastery");
-    safeChild(root, roasteryRoot);
-    const indexPath = resolve(roasteryRoot, "index.json");
-    if (existsSync(indexPath)) safeChild(root, indexPath);
-    const temporaryPath = resolve(
-      roasteryRoot,
-      `.index-${process.pid}-${randomUUID()}.tmp`,
-    );
-    try {
-      writeFileSync(temporaryPath, indexBytes(beans), {
-        encoding: "utf8",
-        flag: "wx",
-        mode: 0o600,
-      });
-      renameSync(temporaryPath, indexPath);
-    } finally {
-      rmSync(temporaryPath, { force: true });
-    }
-  }
-  return { beans, status: "projected", wrote: write };
+  return { beans, bytes: indexBytes(beans), status: "projected" };
 }
 
 export function validate({
   root,
   mode,
+  expectedContract,
 }: {
   root: string;
   mode: ValidationMode;
+  expectedContract: ContractPin;
 }): ValidationResult {
   try {
     const roasteryRoot = resolve(root, "roastery");
@@ -303,7 +280,15 @@ export function validate({
       "invalid_roastery",
     );
     const repository = normalizeRepository(manifest.repository);
-    contractPin(manifest.contract);
+    const actualContract = contractPin(manifest.contract);
+    const trustedContract = contractPin(expectedContract);
+    if (
+      actualContract.repository !== trustedContract.repository ||
+      actualContract.commit !== trustedContract.commit ||
+      actualContract.digest !== trustedContract.digest
+    ) {
+      fail("contract_mismatch");
+    }
     const beans = scanBeans(root);
     const indexPath = resolve(roasteryRoot, "index.json");
     safeChild(root, indexPath);

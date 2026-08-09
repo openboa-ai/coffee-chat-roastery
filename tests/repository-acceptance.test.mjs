@@ -15,6 +15,7 @@ import test from "node:test";
 
 import { projectIndex, renderContentLicense, validate } from "../dist/index.js";
 
+/** @type {import("../dist/index.js").ContractPin} */
 const contract = {
   repository: "https://github.com/openboa-ai/coffee-chat-roastery",
   commit: "a".repeat(40),
@@ -58,21 +59,46 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
     repository: "https://github.com/example/coffee-chat",
   });
   try {
-    assert.deepEqual(validate({ root: seed, mode: "seed" }), {
-      beanCount: 0,
-      repository: "https://github.com/openboa-ai/coffee-chat-roastery",
-      status: "valid",
-    });
-    assert.deepEqual(validate({ root: owner, mode: "initialized" }), {
-      beanCount: 0,
-      repository: "https://github.com/example/coffee-chat",
-      status: "valid",
-    });
+    assert.deepEqual(
+      validate({ root: seed, mode: "seed", expectedContract: contract }),
+      {
+        beanCount: 0,
+        repository: "https://github.com/openboa-ai/coffee-chat-roastery",
+        status: "valid",
+      },
+    );
+    assert.deepEqual(
+      validate({
+        root: owner,
+        mode: "initialized",
+        expectedContract: contract,
+      }),
+      {
+        beanCount: 0,
+        repository: "https://github.com/example/coffee-chat",
+        status: "valid",
+      },
+    );
+    assert.deepEqual(
+      validate({
+        root: owner,
+        mode: "initialized",
+        expectedContract: { ...contract, digest: `sha256:${"c".repeat(64)}` },
+      }),
+      { code: "contract_mismatch", status: "invalid" },
+    );
     rmSync(join(owner, "roastery", "CONTENT_LICENSE.md"));
-    assert.deepEqual(validate({ root: owner, mode: "initialized" }), {
-      code: "invalid_content_license",
-      status: "invalid",
-    });
+    assert.deepEqual(
+      validate({
+        root: owner,
+        mode: "initialized",
+        expectedContract: contract,
+      }),
+      {
+        code: "invalid_content_license",
+        status: "invalid",
+      },
+    );
   } finally {
     rmSync(seed, { force: true, recursive: true });
     rmSync(owner, { force: true, recursive: true });
@@ -94,44 +120,74 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
   writeFileSync(beanPath, bean);
 
   try {
-    const projected = projectIndex({ root, write: true });
+    const originalIndex = readFileSync(
+      join(root, "roastery", "index.json"),
+      "utf8",
+    );
+    const projected = projectIndex({ root });
     const expectedDigest = `sha256:${createHash("sha256").update(bean).digest("hex")}`;
+    const expectedIndex = `${JSON.stringify(
+      { beans: [{ id, digest: expectedDigest }] },
+      null,
+      2,
+    )}\n`;
     assert.deepEqual(projected, {
       beans: [{ digest: expectedDigest, id }],
+      bytes: expectedIndex,
       status: "projected",
-      wrote: true,
     });
     assert.equal(
       readFileSync(join(root, "roastery", "index.json"), "utf8"),
-      `${JSON.stringify(
-        { beans: [{ id, digest: expectedDigest }] },
-        null,
-        2,
-      )}\n`,
+      originalIndex,
     );
-    assert.equal(validate({ root, mode: "initialized" }).status, "valid");
+    writeFileSync(join(root, "roastery", "index.json"), projected.bytes);
+    assert.equal(
+      validate({ root, mode: "initialized", expectedContract: contract })
+        .status,
+      "valid",
+    );
 
     for (const unsafeOrigin of ["localhost", "127.0.0.1", "[::1]"]) {
       writeFileSync(beanPath, bean.replace("example.com", unsafeOrigin));
-      assert.deepEqual(validate({ root, mode: "initialized" }), {
-        code: "invalid_origin",
-        status: "invalid",
-      });
+      assert.deepEqual(
+        validate({ root, mode: "initialized", expectedContract: contract }),
+        {
+          code: "invalid_origin",
+          status: "invalid",
+        },
+      );
     }
+    writeFileSync(
+      beanPath,
+      bean.replace(
+        "  - https://example.com/source\n",
+        "  - https://example.com/source\n  - https://example.com/source\n",
+      ),
+    );
+    assert.deepEqual(
+      validate({ root, mode: "initialized", expectedContract: contract }),
+      {
+        code: "duplicate_origin",
+        status: "invalid",
+      },
+    );
 
     writeFileSync(beanPath, bean);
     const unsafeBean = join(root, "roastery", "beans", "escape.md");
     symlinkSync("../index.json", unsafeBean);
-    assert.deepEqual(validate({ root, mode: "initialized" }), {
-      code: "unsafe_path",
-      status: "invalid",
-    });
+    assert.deepEqual(
+      validate({ root, mode: "initialized", expectedContract: contract }),
+      {
+        code: "unsafe_path",
+        status: "invalid",
+      },
+    );
     unlinkSync(unsafeBean);
 
     const indexPath = join(root, "roastery", "index.json");
     unlinkSync(indexPath);
     symlinkSync(externalTarget, indexPath);
-    assert.throws(() => projectIndex({ root, write: true }), /unsafe_path/u);
+    assert.equal(projectIndex({ root }).bytes, expectedIndex);
     assert.equal(readFileSync(externalTarget, "utf8"), "unchanged\n");
   } finally {
     rmSync(root, { force: true, recursive: true });
