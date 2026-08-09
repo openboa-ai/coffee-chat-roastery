@@ -213,6 +213,24 @@ describe("local CLI boundary", () => {
 });
 
 describe("filesystem trust boundary", () => {
+  test("reports a missing Roastery as missing evidence instead of an unsafe path", async () => {
+    const root = temporaryRepository();
+    rmSync(join(root, "roastery"), { recursive: true });
+    const { validateRepository } =
+      await import("../src/validation/repository.js");
+
+    const result = await validateRepository(root, {
+      repository: "https://github.com/openboa-ai/coffee-chat-roastery",
+      commit: "1".repeat(40),
+      digest: `sha256:${"0".repeat(64)}`,
+    });
+
+    expect(result).toEqual({
+      status: "invalid",
+      reason: "missing_roastery",
+    });
+  });
+
   test("rejects a symlinked selected root in every validation and projection mode", async () => {
     const targetRoot = temporaryRepository();
     const digest = await initializeEmptyRepository(targetRoot);

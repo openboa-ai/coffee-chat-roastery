@@ -161,12 +161,15 @@ async function validateSafeRoasteryTree(root: string): Promise<string | null> {
   const roasteryRoot = join(root, "roastery");
   let entries;
   try {
-    await requireNoFollowPath(root, "roastery", "directory");
+    const roasteryPath = await requireNoFollowPath(
+      root,
+      "roastery",
+      "directory",
+      true,
+    );
+    if (roasteryPath === "missing") return "missing_roastery";
     entries = await readdir(roasteryRoot, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return "missing_roastery";
-    }
+  } catch {
     return "unsafe_repository_path";
   }
 

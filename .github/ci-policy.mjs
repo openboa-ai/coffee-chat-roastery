@@ -96,10 +96,18 @@ function validateWorkflow(name, document) {
     ) {
       fail(`${name}: required event set changed`);
     }
-    for (const eventName of ["pull_request", "merge_group"]) {
-      if (events[eventName] !== null) {
-        fail(`${name}: ${eventName} must not contain path or branch filters`);
-      }
+    const expectedPullRequest =
+      name === "quality.yml"
+        ? { types: ["opened", "synchronize", "reopened", "edited"] }
+        : null;
+    if (
+      JSON.stringify(events.pull_request) !==
+      JSON.stringify(expectedPullRequest)
+    ) {
+      fail(`${name}: pull_request activity contract changed`);
+    }
+    if (events.merge_group !== null) {
+      fail(`${name}: merge_group must not contain path or branch filters`);
     }
     if (
       (name === "codeql.yml" || name === "github-coverage.yml") &&
