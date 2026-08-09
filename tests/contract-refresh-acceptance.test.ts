@@ -260,6 +260,42 @@ describe("protected contract refresh", () => {
     expect(existsSync(sentinel)).toBe(false);
   });
 
+  test("does not execute repository clean filters while validating committed bundles", async () => {
+    const fixture = remember(
+      createSyntheticContractRefreshFixture(undefined, {
+        mutateNewBundle(root) {
+          writeFileSync(
+            resolve(root, ".gitattributes"),
+            "contract/** filter=owned\n",
+          );
+        },
+      }),
+    );
+    const hookRoot = mkdtempSync(resolve(tmpdir(), "contract-refresh-filter-"));
+    roots.push(hookRoot);
+    const sentinel = resolve(hookRoot, "executed");
+    const filter = resolve(hookRoot, "clean-filter.sh");
+    writeFileSync(
+      filter,
+      `#!/bin/sh\ntouch ${JSON.stringify(sentinel)}\ncat\n`,
+    );
+    chmodSync(filter, 0o700);
+    execFileSync("git", [
+      "-C",
+      fixture.newBundle.root,
+      "config",
+      "filter.owned.clean",
+      filter,
+    ]);
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    const result = await evaluateContractRefreshCandidate(inputFrom(fixture));
+
+    expect(result.status).toBe("accepted");
+    expect(existsSync(sentinel)).toBe(false);
+  });
+
   test("does not lazy-fetch missing objects from repository-config promisor remotes", async () => {
     const fixture = remember(createSyntheticContractRefreshFixture());
     const hookRoot = mkdtempSync(resolve(tmpdir(), "contract-refresh-fetch-"));
@@ -688,7 +724,7 @@ describe("protected contract refresh", () => {
     ).rejects.toThrow(/scope/u);
   });
 
-  test("fails closed on dirty bundle bytes and pin projection byte or digest mismatch", async () => {
+  test("uses committed bundle bytes and rejects pin projection byte or digest mismatch", async () => {
     const { evaluateContractRefreshCandidate } =
       await import("../src/validation/repository.js");
     const dirty = remember(createSyntheticContractRefreshFixture());
@@ -698,7 +734,7 @@ describe("protected contract refresh", () => {
     );
     await expect(
       evaluateContractRefreshCandidate(inputFrom(dirty)),
-    ).resolves.toEqual({ status: "rejected", reason: "bundle_byte_mismatch" });
+    ).resolves.toMatchObject({ status: "accepted" });
 
     for (const field of [
       "rights_semantics_bytes",

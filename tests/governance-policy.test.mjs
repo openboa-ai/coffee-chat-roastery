@@ -420,7 +420,7 @@ test("merge policy uses member-only auto-merge with ownership routing", () => {
     assert.match(
       codeowners,
       new RegExp(
-        `^${protectedPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+@SonSangjoon$`,
+        `^${protectedPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+@openboa$`,
         "mu",
       ),
     );
