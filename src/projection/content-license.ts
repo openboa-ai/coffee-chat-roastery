@@ -10,7 +10,8 @@ export interface ContentLicenseRenderInput {
   attribution: string;
 }
 
-const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
+const INVALID_ATTRIBUTION_CHARACTER =
+  /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
 
 export function normalizeOwnerAttribution(value: unknown): string {
   if (typeof value !== "string") {
@@ -20,13 +21,13 @@ export function normalizeOwnerAttribution(value: unknown): string {
   if (
     value !== value.trim() ||
     normalized.length === 0 ||
-    CONTROL_CHARACTER.test(normalized) ||
+    INVALID_ATTRIBUTION_CHARACTER.test(normalized) ||
     normalized === "<OWNER_PROVIDED_ATTRIBUTION>"
   ) {
     throw new Error("attribution is invalid");
   }
-  if (Buffer.byteLength(normalized, "utf8") > 120) {
-    throw new Error("attribution must be at most 120 UTF-8 bytes");
+  if ([...normalized].length > 120) {
+    throw new Error("attribution must be at most 120 Unicode code points");
   }
   return normalized;
 }
