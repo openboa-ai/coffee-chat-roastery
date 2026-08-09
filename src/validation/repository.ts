@@ -729,6 +729,9 @@ export async function evaluateContractRefreshCandidate(
       dimensions,
     };
   }
+  if (!isFixedInitialContentLicensePolicy(newBundle.policy)) {
+    return { status: "rejected", reason: "new_bundle_policy_invalid" };
+  }
 
   const beforeTreeDigest = sha256(
     gitBytes(input.forkRoot, ["ls-tree", "-r", "-z", input.beforeCommit]),
