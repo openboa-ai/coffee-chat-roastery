@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "evidence", "evidence_artifact", "run_url"],
+  "properties": {
+    "status": {
+      "const": "passed"
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {
+          "const": "artifacts/contract-refresh-evidence.json"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "evidence_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "digest", "url"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        }
+      }
+    },
+    "run_url": {
+      "type": "string",
+      "pattern": "^https://"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

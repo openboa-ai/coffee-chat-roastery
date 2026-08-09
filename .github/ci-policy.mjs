@@ -202,6 +202,12 @@ if (aggregateJobs.length !== 1) {
   if (!Array.isArray(job.needs) || job.needs.length === 0) {
     fail("quality.yml:aggregate must depend on internal lanes");
   }
+  if (
+    JSON.stringify(job.needs) !==
+    JSON.stringify(["quality", "publication", "contract-refresh"])
+  ) {
+    fail("quality.yml:aggregate must depend on every required Roastery lane");
+  }
   const aggregateSteps = JSON.stringify(job.steps ?? []);
   for (const marker of [
     "needs.",
@@ -228,6 +234,117 @@ const expectedQualityRuns = [
 ];
 if (JSON.stringify(qualityRuns) !== JSON.stringify(expectedQualityRuns)) {
   fail("quality.yml: quality commands or order changed");
+}
+
+const publicationRuns = (
+  workflows.get("quality.yml")?.jobs?.publication?.steps ?? []
+)
+  .filter((step) => typeof step.run === "string")
+  .map((step) => step.run.trim());
+if (
+  JSON.stringify(publicationRuns) !==
+  JSON.stringify([
+    "npm ci",
+    "npm run test:publication",
+    "npm run check:publication",
+  ])
+) {
+  fail("quality.yml: publication lane must test and enforce the checked head");
+}
+const publicationCheckout = (
+  workflows.get("quality.yml")?.jobs?.publication?.steps ?? []
+).find((step) => String(step.uses).startsWith("actions/checkout@"));
+if (
+  publicationCheckout?.with?.ref !==
+  "${{ github.event.pull_request.head.sha || github.sha }}"
+) {
+  fail("quality.yml: publication lane must check out the exact event head");
+}
+const publicationEnforcement = (
+  workflows.get("quality.yml")?.jobs?.publication?.steps ?? []
+).find((step) => step.run === "npm run check:publication");
+if (
+  !sameRecord(publicationEnforcement?.env, {
+    ROASTERY_TRUSTED_CONTRACT_COMMIT:
+      "${{ vars.ROASTERY_TRUSTED_CONTRACT_COMMIT }}",
+    ROASTERY_TRUSTED_CONTRACT_DIGEST:
+      "${{ vars.ROASTERY_TRUSTED_CONTRACT_DIGEST }}",
+    ROASTERY_TRUSTED_CONTRACT_REPOSITORY:
+      "${{ vars.ROASTERY_TRUSTED_CONTRACT_REPOSITORY }}",
+  })
+) {
+  fail(
+    "quality.yml: publication trust tuple must come from repository variables",
+  );
+}
+
+const refreshSteps =
+  workflows.get("quality.yml")?.jobs?.["contract-refresh"]?.steps ?? [];
+const refreshRuns = refreshSteps
+  .filter((step) => typeof step.run === "string")
+  .map((step) => step.run.trim());
+if (
+  JSON.stringify(refreshRuns) !==
+  JSON.stringify([
+    "npm ci",
+    "mkdir -p artifacts",
+    "npm run test:contract-refresh",
+    "npm run build:contract-refresh-receipt",
+  ])
+) {
+  fail("quality.yml: contract-refresh commands or order changed");
+}
+const refreshAcceptance = refreshSteps.find(
+  (step) => step.run === "npm run test:contract-refresh",
+);
+if (
+  !sameRecord(refreshAcceptance?.env, {
+    CONTRACT_REFRESH_EVIDENCE_OUTPUT:
+      "artifacts/contract-refresh-evidence.json",
+  })
+) {
+  fail("quality.yml: contract-refresh evidence output is not immutable");
+}
+const evidenceArtifact = refreshSteps.find(
+  (step) => step.id === "upload-contract-refresh-evidence",
+);
+if (
+  evidenceArtifact?.with?.name !== "contract-refresh-evidence" ||
+  evidenceArtifact?.with?.path !== "artifacts/contract-refresh-evidence.json" ||
+  evidenceArtifact?.with?.["if-no-files-found"] !== "error" ||
+  evidenceArtifact?.with?.["retention-days"] !== 90
+) {
+  fail("quality.yml: contract-refresh evidence must be preserved fail closed");
+}
+const receiptBuild = refreshSteps.find(
+  (step) => step.run === "npm run build:contract-refresh-receipt",
+);
+if (
+  !sameRecord(receiptBuild?.env, {
+    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_DIGEST:
+      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-digest }}",
+    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_ID:
+      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-id }}",
+    CONTRACT_REFRESH_EVIDENCE_ARTIFACT_URL:
+      "${{ steps.upload-contract-refresh-evidence.outputs.artifact-url }}",
+    CONTRACT_REFRESH_EVIDENCE_PATH: "artifacts/contract-refresh-evidence.json",
+    CONTRACT_REFRESH_RECEIPT_OUTPUT: "artifacts/contract-refresh-receipt.json",
+    GITHUB_RUN_URL:
+      "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+  })
+) {
+  fail("quality.yml: contract-refresh upload outputs must bind the receipt");
+}
+const receiptArtifact = refreshSteps.find(
+  (step) => step.id === "upload-contract-refresh-receipt",
+);
+if (
+  receiptArtifact?.with?.name !== "contract-refresh-receipt" ||
+  receiptArtifact?.with?.path !== "artifacts/contract-refresh-receipt.json" ||
+  receiptArtifact?.with?.["if-no-files-found"] !== "error" ||
+  receiptArtifact?.with?.["retention-days"] !== 90
+) {
+  fail("quality.yml: artifact-bound receipt must be preserved fail closed");
 }
 
 const policyRuns = (workflows.get("policy.yml")?.jobs?.policy?.steps ?? [])
@@ -377,9 +494,21 @@ if (mergePolicy) {
     "/CODEOWNERS",
     "/LICENSE",
     "/scripts/check-migration-receipt.mjs",
+    "/scripts/build-contract-refresh-receipt.mjs",
+    "/scripts/check-publication.mjs",
     "/docs/migration/**",
     "/contract/**",
     "/roastery/CONTENT_LICENSE.md",
+    "/src/cli.ts",
+    "/src/contract/**",
+    "/src/projection/**",
+    "/src/validation/**",
+    "/tests/content-license-contract.test.ts",
+    "/tests/rights-semantics-contract.test.ts",
+    "/tests/publication-acceptance.test.ts",
+    "/tests/contract-refresh-acceptance.test.ts",
+    "/tests/security-boundary.test.ts",
+    "/tests/helpers/**",
   ];
   for (const path of requiredProtectedPaths) {
     if (!mergePolicy.protected_paths?.includes(path)) {
@@ -413,6 +542,40 @@ if (mergePolicy) {
     if (result.status !== 0) {
       fail(
         `migration checker failed: ${(result.stderr || result.stdout).trim()}`,
+      );
+    }
+  }
+
+  const activeMilestone = mergePolicy.migration?.active_milestone;
+  if (
+    !activeMilestone ||
+    !/^[0-9a-f]{40}$/u.test(activeMilestone.base_commit ?? "") ||
+    typeof activeMilestone.projection !== "string" ||
+    typeof activeMilestone.equality !== "string" ||
+    typeof activeMilestone.receipt !== "string"
+  ) {
+    fail("active migration milestone contract is invalid");
+  } else {
+    const result = spawnSync(
+      process.execPath,
+      [
+        resolve(root, checker),
+        "--root",
+        root,
+        "--base",
+        activeMilestone.base_commit,
+        "--projection",
+        resolve(root, activeMilestone.projection),
+        "--equality",
+        resolve(root, activeMilestone.equality),
+        "--receipt",
+        resolve(root, activeMilestone.receipt),
+      ],
+      { encoding: "utf8" },
+    );
+    if (result.status !== 0) {
+      fail(
+        `active migration checker failed: ${(result.stderr || result.stdout).trim()}`,
       );
     }
   }
