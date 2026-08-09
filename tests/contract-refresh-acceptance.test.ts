@@ -1,11 +1,12 @@
 import {
+  chmodSync,
   existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -234,6 +235,29 @@ describe("protected contract refresh", () => {
     );
     expect(result).toHaveProperty("old_projection_bytes");
     expect(result).toHaveProperty("new_projection_bytes");
+  });
+
+  test("does not execute repository-config fsmonitor programs while validating bundles", async () => {
+    const fixture = remember(createSyntheticContractRefreshFixture());
+    const hookRoot = mkdtempSync(resolve(tmpdir(), "contract-refresh-hook-"));
+    roots.push(hookRoot);
+    const sentinel = resolve(hookRoot, "executed");
+    const hook = resolve(hookRoot, "fsmonitor.sh");
+    writeFileSync(
+      hook,
+      `#!/bin/sh\ntouch ${JSON.stringify(sentinel)}\nprintf '\\n'\n`,
+    );
+    chmodSync(hook, 0o700);
+    for (const root of [fixture.oldBundle.root, fixture.newBundle.root]) {
+      execFileSync("git", ["-C", root, "config", "core.fsmonitor", hook]);
+    }
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    const result = await evaluateContractRefreshCandidate(inputFrom(fixture));
+
+    expect(result.status).toBe("accepted");
+    expect(existsSync(sentinel)).toBe(false);
   });
 
   test("rejects aliased A/B bundle roots before treating them as independent evidence", async () => {

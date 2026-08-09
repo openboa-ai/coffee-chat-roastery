@@ -304,14 +304,47 @@ function sha256(bytes: string | Buffer): `sha256:${string}` {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
+const SAFE_REPOSITORY_GIT_ARGUMENTS = [
+  "-c",
+  "core.fsmonitor=false",
+  "-c",
+  "core.hooksPath=/dev/null",
+  "-c",
+  "core.pager=cat",
+  "-c",
+  "pager.status=false",
+  "-c",
+  "diff.external=",
+] as const;
+
+const SAFE_REPOSITORY_GIT_ENVIRONMENT = {
+  ...process.env,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_PAGER: "cat",
+  GIT_TERMINAL_PROMPT: "0",
+};
+
 function gitText(root: string, arguments_: string[]): string {
-  return execFileSync("git", ["-C", root, ...arguments_], {
-    encoding: "utf8",
-  }).trim();
+  return execFileSync(
+    "git",
+    [...SAFE_REPOSITORY_GIT_ARGUMENTS, "-C", root, ...arguments_],
+    {
+      env: SAFE_REPOSITORY_GIT_ENVIRONMENT,
+      encoding: "utf8",
+    },
+  ).trim();
 }
 
 function gitBytes(root: string, arguments_: string[]): Buffer {
-  return execFileSync("git", ["-C", root, ...arguments_]);
+  return execFileSync(
+    "git",
+    [...SAFE_REPOSITORY_GIT_ARGUMENTS, "-C", root, ...arguments_],
+    {
+      env: SAFE_REPOSITORY_GIT_ENVIRONMENT,
+    },
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
