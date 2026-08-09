@@ -14,7 +14,21 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "pattern": "^https://"
+        "allOf": [
+          {
+            "pattern": "^https://[^\\s/?#@:.]+(?:\\.[^\\s/?#@:.]+)+(?:\\.)?(?::[0-9]+)?(?:[/?#]|$)"
+          },
+          {
+            "not": {
+              "pattern": "^https://(?:0[xX][0-9A-Fa-f]+|[0-9]+)(?:\\.(?:0[xX][0-9A-Fa-f]+|[0-9]+)){0,3}(?::[0-9]+)?(?:[/?#]|$)"
+            }
+          },
+          {
+            "not": {
+              "pattern": "^https://(?:[^/?#@:]+\\.)*(?:[lL][oO][cC][aA][lL][hH][oO][sS][tT]|[lL][oO][cC][aA][lL]|[iI][nN][tT][eE][rR][nN][aA][lL]|[iI][nN][vV][aA][lL][iI][dD]|[tT][eE][sS][tT]|[eE][xX][aA][mM][pP][lL][eE]|[hH][oO][mM][eE]\\.[aA][rR][pP][aA]|[oO][nN][iI][oO][nN])\\.?(?::[0-9]+)?(?:[/?#]|$)"
+            }
+          }
+        ]
       }
     }
   }

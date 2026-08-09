@@ -349,6 +349,22 @@ function gitBytes(root: string, arguments_: string[]): Buffer {
   );
 }
 
+function verifiedGitObject(
+  repositoryRoot: string,
+  type: "blob" | "commit" | "tree",
+  objectId: string,
+): Buffer {
+  const bytes = gitBytes(repositoryRoot, ["cat-file", type, objectId]);
+  const actualObjectId = createHash("sha1")
+    .update(`${type} ${bytes.length}\0`)
+    .update(bytes)
+    .digest("hex");
+  if (actualObjectId !== objectId) {
+    throw new Error("committed object hash does not match its id");
+  }
+  return bytes;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -383,19 +399,19 @@ async function materializeCommittedContractBundle(
   repositoryRoot: string,
   commit: string,
 ): Promise<string> {
-  const contractEntry = gitText(repositoryRoot, [
-    "ls-tree",
-    commit,
-    "--",
-    "contract",
-  ]);
-  if (!/^040000 tree [0-9a-f]{40}\tcontract$/u.test(contractEntry)) {
-    throw new Error("contract is not a committed tree");
+  const commitBytes = verifiedGitObject(repositoryRoot, "commit", commit);
+  const rootTree = /^tree ([0-9a-f]{40})\n/u.exec(
+    commitBytes.toString("utf8"),
+  )?.[1];
+  if (rootTree === undefined) {
+    throw new Error("committed contract has no valid root tree");
   }
+  verifiedGitObject(repositoryRoot, "tree", rootTree);
 
   const entries = gitBytes(repositoryRoot, [
     "ls-tree",
     "-r",
+    "-t",
     "-z",
     "--full-tree",
     commit,
@@ -414,23 +430,39 @@ async function materializeCommittedContractBundle(
   );
   try {
     const materializedPaths = new Set<string>();
+    let contractTreeSeen = false;
+    let contractBlobCount = 0;
     for (const entry of entries) {
       const match =
-        /^(100644) blob ([0-9a-f]{40})\t(contract\/[A-Za-z0-9._/-]+)$/u.exec(
+        /^([0-7]{6}) (blob|tree) ([0-9a-f]{40})\t(contract(?:\/[A-Za-z0-9._-]+)*)$/u.exec(
           entry,
         );
       if (match === null) {
         throw new Error("committed contract contains a non-data entry");
       }
-      const objectId = match[2] as string;
-      const path = match[3] as string;
+      const mode = match[1] as string;
+      const type = match[2] as "blob" | "tree";
+      const objectId = match[3] as string;
+      const path = match[4] as string;
       if (
+        path === "contract"
+          ? mode !== "040000" || type !== "tree" || contractTreeSeen
+          : path
+              .slice("contract/".length)
+              .split("/")
+              .some(
+                (segment) =>
+                  segment === "" || segment === "." || segment === "..",
+              )
+      ) {
+        throw new Error("committed contract path is unsafe");
+      }
+      if (
+        path !== "contract" &&
         path
           .slice("contract/".length)
           .split("/")
-          .some(
-            (segment) => segment === "" || segment === "." || segment === "..",
-          )
+          .some((segment) => !/^[A-Za-z0-9._-]+$/u.test(segment))
       ) {
         throw new Error("committed contract path is unsafe");
       }
@@ -438,13 +470,25 @@ async function materializeCommittedContractBundle(
         throw new Error("committed contract path is duplicated");
       }
       materializedPaths.add(path);
+      if (type === "tree") {
+        if (mode !== "040000") {
+          throw new Error("committed contract contains a non-data entry");
+        }
+        verifiedGitObject(repositoryRoot, "tree", objectId);
+        contractTreeSeen ||= path === "contract";
+        continue;
+      }
+      if (mode !== "100644" || path === "contract") {
+        throw new Error("committed contract contains a non-data entry");
+      }
+      const bytes = verifiedGitObject(repositoryRoot, "blob", objectId);
       const target = join(materializedRoot, path);
       await mkdir(dirname(target), { recursive: true });
-      await writeFile(
-        target,
-        gitBytes(repositoryRoot, ["cat-file", "blob", objectId]),
-        { mode: 0o600 },
-      );
+      await writeFile(target, bytes, { mode: 0o600 });
+      contractBlobCount += 1;
+    }
+    if (!contractTreeSeen || contractBlobCount === 0) {
+      throw new Error("committed contract tree is empty");
     }
     return materializedRoot;
   } catch (error) {
