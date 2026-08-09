@@ -413,6 +413,7 @@ async function materializeCommittedContractBundle(
     join(tmpdir(), "roastery-committed-contract-"),
   );
   try {
+    const materializedPaths = new Set<string>();
     for (const entry of entries) {
       const match =
         /^(100644) blob ([0-9a-f]{40})\t(contract\/[A-Za-z0-9._/-]+)$/u.exec(
@@ -433,6 +434,10 @@ async function materializeCommittedContractBundle(
       ) {
         throw new Error("committed contract path is unsafe");
       }
+      if (materializedPaths.has(path)) {
+        throw new Error("committed contract path is duplicated");
+      }
+      materializedPaths.add(path);
       const target = join(materializedRoot, path);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(
