@@ -571,6 +571,7 @@ test("merge policy uses trusted-author auto-merge with ownership routing", () =>
   ]);
 
   for (const protectedPath of [
+    "/tsconfig.json",
     "/src/cli.ts",
     "/tests/content-license-contract.test.ts",
     "/tests/contract.test.ts",

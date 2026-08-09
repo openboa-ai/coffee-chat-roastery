@@ -251,6 +251,70 @@ describe("Publication Contract", () => {
     });
   });
 
+  test("uses the merge base when the target branch advances", async () => {
+    const fixture = await publicationFixture();
+    execFileSync("git", [
+      "-C",
+      fixture.root,
+      "switch",
+      "--quiet",
+      "--create",
+      "advanced-target",
+      fixture.baseSha,
+    ]);
+    writeFileSync(join(fixture.root, "target-only.txt"), "target advanced\n");
+    execFileSync("git", ["-C", fixture.root, "add", "target-only.txt"]);
+    execFileSync("git", [
+      "-C",
+      fixture.root,
+      "commit",
+      "--quiet",
+      "-m",
+      "advance target",
+    ]);
+    fixture.baseSha = execFileSync(
+      "git",
+      ["-C", fixture.root, "rev-parse", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
+    execFileSync("git", [
+      "-C",
+      fixture.root,
+      "switch",
+      "--quiet",
+      "--detach",
+      fixture.headSha,
+    ]);
+
+    const beanDigest = `sha256:${createHash("sha256")
+      .update(fixture.beanBytes)
+      .digest("hex")}`;
+    const changeSetDigest = framedChangeSetDigest([
+      { path: fixture.beanPath, bytes: fixture.beanBytes },
+      { path: "roastery/index.json", bytes: fixture.indexBytes },
+    ]);
+    const body = `<!-- coffee-chat-publication\n${JSON.stringify({
+      schema: "coffee-chat/bean-publication-attestation",
+      head_sha: fixture.headSha,
+      bean_path: fixture.beanPath,
+      bean_digest: beanDigest,
+      change_set_digest: changeSetDigest,
+      attestation:
+        "I attest that this Bean contains no embedded third-party material requiring attribution or prior-modification notices beyond the current Standard Roastery declaration and citation contract; Origin URLs and the resources they identify are references outside this Bean license.",
+      accepted: true,
+      embedded_third_party_notices_required: false,
+    })}\n-->`;
+
+    const result = runPublicationCheck(fixture, body);
+
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "accepted",
+      head_sha: fixture.headSha,
+      bean_path: fixture.beanPath,
+    });
+  });
+
   test("rejects a Bean rename even when Git detects identical content", async () => {
     const fixture = await renamedPublicationFixture();
     const beanDigest = `sha256:${createHash("sha256")
