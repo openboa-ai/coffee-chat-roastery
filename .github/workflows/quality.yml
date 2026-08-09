@@ -7,8 +7,29 @@ on:
 permissions: {}
 
 jobs:
+  eligibility:
+    name: Roastery author eligibility
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Decide author eligibility
+        env:
+          AUTHOR_ASSOCIATION:
+            ${{ github.event.pull_request.author_association }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          case "$EVENT_NAME" in
+            merge_group) exit 0 ;;
+            pull_request)
+              case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+              ;;
+            *) exit 1 ;;
+          esac
+
   quality:
     name: Roastery deterministic quality
+    needs: eligibility
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -16,55 +37,34 @@ jobs:
       - name: Check out repository without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
           persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
           cache: npm
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Check formatting
-        run: npm run format:check
-      - name: Check types
-        run: npm run typecheck
-      - name: Run deterministic tests
-        run: npm test
-      - name: Verify CI and migration policy
-        run: npm run ci:policy
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run smoke
+      - run: npm run package:check
+      - run: npm run ci:policy
 
   aggregate:
     name: Roastery required
     if: always()
     needs:
+      - eligibility
       - quality
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Interpret required lane state
+      - name: Require every applicable lane
         env:
+          ELIGIBILITY_RESULT: ${{ needs.eligibility.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
         run: |
-          case "$QUALITY_RESULT" in
-            success)
-              printf '%s\n' 'quality=succeeded'
-              ;;
-            failure)
-              printf '%s\n' 'quality=failed' >&2
-              exit 1
-              ;;
-            skipped)
-              printf '%s\n' 'quality=skipped' >&2
-              exit 1
-              ;;
-            cancelled)
-              printf '%s\n' 'quality=unavailable' >&2
-              exit 1
-              ;;
-            *)
-              printf '%s\n' 'quality=invalid' >&2
-              exit 1
-              ;;
-          esac
+          test "$ELIGIBILITY_RESULT" = success
+          test "$QUALITY_RESULT" = success

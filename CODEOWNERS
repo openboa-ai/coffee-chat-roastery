@@ -1,15 +1,16 @@
-# No wildcard owner: ordinary paths may become eligible for strong-CI auto-merge.
-/.github/** @SonSangjoon
-/AGENTS.md @SonSangjoon
-/CODEOWNERS @SonSangjoon
-/LICENSE @SonSangjoon
-/SECURITY.md @SonSangjoon
-/package.json @SonSangjoon
-/package-lock.json @SonSangjoon
-/scripts/check-migration-receipt.mjs @SonSangjoon
-/docs/migration/** @SonSangjoon
-/contract/** @SonSangjoon
-/roastery/CONTENT_LICENSE.md @SonSangjoon
-/src/contract/** @SonSangjoon
-/src/projection/** @SonSangjoon
-/src/validation/** @SonSangjoon
+# Ownership routing only; repository rules require zero human approvals.
+/.github/** @openboa
+/AGENTS.md @openboa
+/CODEOWNERS @openboa
+/LICENSE @openboa
+/SECURITY.md @openboa
+/package.json @openboa
+/package-lock.json @openboa
+/tsconfig.json @openboa
+/tsconfig.build.json @openboa
+/scripts/** @openboa
+/contract/** @openboa
+/roastery/CONTENT_LICENSE.md @openboa
+/src/cli.ts @openboa
+/src/index.ts @openboa
+/tests/** @openboa

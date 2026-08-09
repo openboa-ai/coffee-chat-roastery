@@ -1,19 +1,21 @@
-# Repository contribution flow
+# Contribution flow
 
-Every change is developed on a branch and proposed through a pull request. Every
-pull-request source commit must carry a GitHub-verifiable signature before the
-pull request can enter the merge queue. `main` accepts squash merges only.
+## Current migration shell
 
-GitHub owns the merge decision:
+Changes preserve a Bean-free official repository, the MIT software boundary, the
+future fixed CC BY 4.0 owner-content boundary, and the closed package surface.
+The three public commands are intentionally unimplemented and make no writes.
 
-- ordinary paths may use GitHub native auto-merge after all required checks,
-  code scanning, and code quality rules pass;
-- an eligible pull request enters the native merge queue, where the required
-  `merge_group` checks run against GitHub's queued merge candidate;
-- protected control-plane and contract paths additionally require the matching
-  CODEOWNERS approval;
-- repository workflows provide evidence but never merge pull requests.
+## Deferred implementation
 
-This document is a signed ordinary-path merge-queue canary. Its acceptance
-requires zero human reviews, successful pull-request and `merge_group` checks, a
-GitHub-verified squash commit on `main`, and deletion of this source branch.
+Do not add a schema, seed, validator, projection, digest, publication check,
+compatibility layer, migration receipt, refresh process, or enforcement claim
+without a new approved implementation scope. A future `project-index` write must
+be designed and tested as an explicit write operation.
+
+## Pull requests
+
+Use GitHub-native squash merge only. Eligible pull-request authors are `OWNER`
+and `MEMBER`; the repository requires zero approvals and no custom auto-merge
+controller. Required checks are the lean deterministic quality lane, dependency
+review, and CodeQL.

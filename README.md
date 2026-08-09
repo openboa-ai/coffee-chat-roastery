@@ -1,33 +1,51 @@
 # Coffee Chat Roastery
 
-This is the official public Roastery repository for Coffee Chat.
+Coffee Chat Roastery is the public, forkable, Bean-free authority for the future
+canonical Roastery contract. This migration shell establishes the repository
+boundary and package shape; it does not implement a validator, index projection,
+publication enforcement, seed, or compatibility layer.
 
-## Current status
+The official repository is intentionally Bean-free and contains no personal
+attribution. A personal fork has one canonical data root:
 
-This repository is **governance-only** and **Bean-free**. It currently
-establishes the repository trust base; it does not yet implement the Roastery
-contract, validator, Publication Contract, publication CI, or usable fork seed.
-It contains no personal or sample Bean and no Coffee Chat Plugin, evaluator, or
-benchmark runtime.
+```text
+roastery/
+├── roastery.json
+├── index.json
+├── CONTENT_LICENSE.md
+└── beans/
+```
 
-The intended role is to become the canonical contract source and empty public
-seed from which each owner can create one public Roastery. Those capabilities
-must arrive through later reviewed pull requests and their own evidence.
+When the seed is implemented, `roastery/roastery.json` will be the sole
+downstream contract pin. It is not present in this official repository today.
 
-## Licensing boundary
+## Commands
 
-Official code, contracts, policy, tests, tooling, and reusable documentation in
-this repository are licensed under the [MIT License](LICENSE), Copyright (c)
-2026 Openboa AI.
+```sh
+roastery validate
+roastery project-index
+roastery contract-digest
+```
 
-No personal Bean content exists here. When the Standard Roastery initialization
-flow is implemented, an owner's `roastery/beans/**` content will use the fixed
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) publication contract
-with owner-provided attribution and explicit acceptance. Origin URLs and the
-resources they identify remain outside that Bean-content license. This policy
-statement is not a claim that initialization is implemented today.
+All three commands are discoverable but return `{"status":"not_implemented"}`
+with a non-zero exit code. They make no writes. The future `project-index`
+capability is the only contemplated write surface, and needs a separately
+approved implementation.
 
-## Security
+The installed package exports exactly `validate`, `projectIndex`, and
+`contractDigest`; each currently returns the same explicit deferred status.
+`npm run package:check` packs, installs, and runs this closed surface offline.
 
-Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Do
-not put secrets, personal data, or exploit details in public issues.
+## Rights boundary
+
+Official code, schemas, contracts, policy, tests, and tooling use the root
+[MIT License](LICENSE), Copyright (c) 2026 Openboa AI.
+
+Personal `roastery/beans/**` content uses the fixed
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) declaration created
+with owner-provided attribution. Origin URLs and the resources they identify
+remain outside that Bean-content license. The official Bean-free repository does
+not install `roastery/CONTENT_LICENSE.md`.
+
+See [SECURITY.md](SECURITY.md) and [the quality map](docs/quality-map.md) for
+the current shell boundary and deferred implementation work.
