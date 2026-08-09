@@ -162,7 +162,11 @@ function parseBean(path) {
     return { content, id };
 }
 function scanBeans(root) {
+    const roasteryRoot = resolve(root, "roastery");
+    safeChild(root, roasteryRoot);
     const directory = resolve(root, "roastery", "beans");
+    if (!existsSync(directory))
+        return [];
     safeChild(root, directory);
     const ids = new Set();
     const entries = readdirSync(directory, { withFileTypes: true });

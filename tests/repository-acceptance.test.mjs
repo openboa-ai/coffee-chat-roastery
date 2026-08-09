@@ -26,7 +26,7 @@ function fixture({
   initialized = false,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "roastery-fixture-"));
-  mkdirSync(join(root, "roastery", "beans"), { recursive: true });
+  mkdirSync(join(root, "roastery"), { recursive: true });
   writeFileSync(
     join(root, "roastery", "roastery.json"),
     `${JSON.stringify(
@@ -87,6 +87,7 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
   const external = mkdtempSync(join(tmpdir(), "roastery-external-"));
   const externalTarget = join(external, "must-not-change.txt");
   writeFileSync(externalTarget, "unchanged\n");
+  mkdirSync(join(root, "roastery", "beans"));
   const id = "018f0f31-9d95-7c89-8f7a-9de83bb3f123";
   const bean = `---\nid: ${id}\norigins:\n  - https://example.com/source\n---\n\nA deliberate point of view.\n`;
   const beanPath = join(root, "roastery", "beans", `${id}.md`);

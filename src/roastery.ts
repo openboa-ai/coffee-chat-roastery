@@ -226,7 +226,10 @@ function parseBean(path: string): { content: Buffer; id: string } {
 }
 
 function scanBeans(root: string): IndexEntry[] {
+  const roasteryRoot = resolve(root, "roastery");
+  safeChild(root, roasteryRoot);
   const directory = resolve(root, "roastery", "beans");
+  if (!existsSync(directory)) return [];
   safeChild(root, directory);
   const ids = new Set<string>();
   const entries = readdirSync(directory, { withFileTypes: true });
