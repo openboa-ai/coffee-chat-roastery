@@ -143,10 +143,10 @@ function validateWorkflow(name, document) {
       }
       if (
         step.uses?.startsWith("actions/checkout@") &&
-        ["policy.yml", "quality.yml"].includes(name) &&
+        ["github-coverage.yml", "policy.yml", "quality.yml"].includes(name) &&
         step.with?.["fetch-depth"] !== 0
       ) {
-        fail(`${name}:${jobId}: migration lanes must fetch complete history`);
+        fail(`${name}:${jobId}: required lanes must fetch complete history`);
       }
       if (
         step.uses?.startsWith("actions/setup-node@") &&
@@ -174,6 +174,9 @@ for (const name of discoveredWorkflows) {
     }
     if (/\bsecrets\s*\./u.test(source)) {
       fail(`${name}: secret context is forbidden`);
+    }
+    if (/\|\|\s*true/u.test(source)) {
+      fail(`${name}: shell success masking is forbidden`);
     }
     const document = parse(source);
     workflows.set(name, document);
@@ -234,6 +237,95 @@ if (
   JSON.stringify(policyRuns) !== JSON.stringify(["npm ci", "npm run ci:policy"])
 ) {
   fail("policy.yml: policy job must run only install and the policy checker");
+}
+
+const coverageWorkflow = workflows.get("github-coverage.yml");
+const coverageJob = coverageWorkflow?.jobs?.coverage;
+const coverageSteps = coverageJob?.steps ?? [];
+const coverageCheckout = coverageSteps.find((step) =>
+  String(step.uses).startsWith("actions/checkout@"),
+);
+if (
+  coverageCheckout?.with?.ref !==
+  "${{ github.event.pull_request.head.sha || github.sha }}"
+) {
+  fail("github-coverage.yml: checkout must bind the pull request head SHA");
+}
+const coverageRuns = coverageSteps
+  .filter((step) => typeof step.run === "string")
+  .map((step) => step.run);
+if (
+  !coverageRuns.some(
+    (run) =>
+      run.includes("--experimental-test-coverage") &&
+      run.includes("tests/*.test.mjs"),
+  )
+) {
+  fail("github-coverage.yml: coverage must execute the complete test suite");
+}
+if (
+  !coverageRuns.some(
+    (run) =>
+      run.includes("--require-hashes") &&
+      run.includes(".github/coverage-requirements.txt"),
+  )
+) {
+  fail("github-coverage.yml: converter dependency must be hash locked");
+}
+const coverageArtifact = coverageSteps.find((step) =>
+  String(step.uses).startsWith("actions/upload-artifact@"),
+);
+if (
+  !String(coverageArtifact?.if).includes(
+    "github.event.pull_request.head.repo.full_name == github.repository",
+  ) ||
+  coverageArtifact?.with?.["if-no-files-found"] !== "error" ||
+  coverageArtifact?.with?.["retention-days"] !== 1
+) {
+  fail(
+    "github-coverage.yml: coverage artifact must fail closed and reject forks",
+  );
+}
+const coverageUploadJob =
+  coverageWorkflow?.jobs?.["upload-coverage-javascript"];
+const coverageUploadCondition = String(coverageUploadJob?.if);
+if (
+  coverageUploadJob?.needs !== "coverage" ||
+  !coverageUploadCondition.includes("needs.coverage.result == 'success'") ||
+  !coverageUploadCondition.includes("github.event_name != 'merge_group'") ||
+  !coverageUploadCondition.includes(
+    "github.event.pull_request.head.repo.full_name == github.repository",
+  )
+) {
+  fail("github-coverage.yml: privileged upload boundary is invalid");
+}
+const coverageUploadStep = (coverageUploadJob?.steps ?? []).find((step) =>
+  String(step.uses).startsWith("actions/upload-code-coverage@"),
+);
+if (
+  !sameRecord(coverageUploadStep?.with, {
+    file: "cobertura.xml",
+    language: "JavaScript",
+    label: "roastery-javascript",
+  })
+) {
+  fail("github-coverage.yml: GitHub coverage upload contract changed");
+}
+try {
+  const requirements = readFileSync(
+    resolve(root, ".github/coverage-requirements.txt"),
+    "utf8",
+  );
+  if (
+    requirements !==
+    "lcov_cobertura==2.1.1 --hash=sha256:92f8107297f6d1d7a7a0a88c6071c1ea04f862f2fe918c6ecce271573c37d8aa\n"
+  ) {
+    fail("coverage converter dependency or hash changed");
+  }
+} catch (error) {
+  fail(
+    `coverage converter requirements cannot be read: ${describeError(error)}`,
+  );
 }
 
 const dependencySteps =

@@ -19,7 +19,9 @@ jobs:
       - name: Check out repository without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -35,11 +37,15 @@ jobs:
             --experimental-test-coverage \
             --test-reporter=lcov \
             --test-reporter-destination=coverage/lcov.info \
-            tests/*.test.mjs || true
+            tests/*.test.mjs
         shell: bash
       - name: Convert lcov to Cobertura XML
         run: |
-          pip install lcov_cobertura --quiet
+          python3 -m pip install \
+            --disable-pip-version-check \
+            --no-deps \
+            --require-hashes \
+            --requirement .github/coverage-requirements.txt
           python3 -m lcov_cobertura coverage/lcov.info --output coverage/cobertura.xml
         shell: bash
       - name: Upload coverage artifact
@@ -50,14 +56,16 @@ jobs:
         with:
           name: coverage-report-javascript
           path: coverage/cobertura.xml
+          if-no-files-found: error
+          retention-days: 1
 
   upload-coverage-javascript:
     name: Upload JavaScript coverage
     needs: coverage
     if:
       ${{ !cancelled() && needs.coverage.result == 'success' &&
-      (github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository) }}
+      github.event_name != 'merge_group' && (github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -72,4 +80,4 @@ jobs:
         with:
           file: cobertura.xml
           language: JavaScript
-          label: code-coverage-agent
+          label: roastery-javascript

@@ -25,6 +25,7 @@ const workflowPaths = [
   ".github/workflows/policy.yml",
   ".github/workflows/quality.yml",
   ".github/workflows/codeql.yml",
+  ".github/workflows/github-coverage.yml",
 ];
 
 function readText(path) {
@@ -168,7 +169,13 @@ test("required workflows expose safe, always-created pull request evidence", () 
               contents: "read",
               "security-events": "write",
             }
-          : { contents: "read" };
+          : path.endsWith("github-coverage.yml") &&
+              jobId === "upload-coverage-javascript"
+            ? {
+                "code-quality": "write",
+                contents: "read",
+              }
+            : { contents: "read" };
       assert.deepEqual(
         job.permissions,
         expectedPermissions,
@@ -208,6 +215,7 @@ test("migration lanes fetch the immutable empty-base history", () => {
   for (const path of [
     ".github/workflows/policy.yml",
     ".github/workflows/quality.yml",
+    ".github/workflows/github-coverage.yml",
   ]) {
     const document = parse(readText(path));
     const checkoutSteps = collectByKey(document.jobs, "uses")
@@ -220,6 +228,60 @@ test("migration lanes fetch the immutable empty-base history", () => {
       .find((step) => String(step.uses).startsWith("actions/checkout@"));
     assert.equal(checkout?.with?.["fetch-depth"], 0, path);
   }
+});
+
+test("coverage evidence fails closed before same-repository upload", () => {
+  const path = ".github/workflows/github-coverage.yml";
+  const bytes = readText(path);
+  const workflow = parse(bytes);
+  const coverage = workflow.jobs.coverage;
+  const upload = workflow.jobs["upload-coverage-javascript"];
+  const checkout = coverage.steps.find((step) =>
+    String(step.uses).startsWith("actions/checkout@"),
+  );
+  const artifact = coverage.steps.find((step) =>
+    String(step.uses).startsWith("actions/upload-artifact@"),
+  );
+  const uploadStep = upload.steps.find((step) =>
+    String(step.uses).startsWith("actions/upload-code-coverage@"),
+  );
+
+  assert.doesNotMatch(bytes, /\|\|\s*true/u, "test failures stay failures");
+  assert.equal(checkout.with["fetch-depth"], 0);
+  assert.equal(
+    checkout.with.ref,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+  assert.match(
+    bytes,
+    /--require-hashes[\s\S]*\.github\/coverage-requirements\.txt/u,
+  );
+  assert.match(
+    readText(".github/coverage-requirements.txt"),
+    /^lcov_cobertura==2\.1\.1 --hash=sha256:[0-9a-f]{64}\n$/u,
+  );
+  assert.match(
+    String(artifact.if),
+    /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u,
+  );
+  assert.equal(artifact.with["if-no-files-found"], "error");
+  assert.equal(artifact.with["retention-days"], 1);
+  assert.equal(upload.needs, "coverage");
+  assert.match(String(upload.if), /needs\.coverage\.result == 'success'/u);
+  assert.match(String(upload.if), /github\.event_name != 'merge_group'/u);
+  assert.match(
+    String(upload.if),
+    /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u,
+  );
+  assert.deepEqual(upload.permissions, {
+    "code-quality": "write",
+    contents: "read",
+  });
+  assert.deepEqual(uploadStep.with, {
+    file: "cobertura.xml",
+    language: "JavaScript",
+    label: "roastery-javascript",
+  });
 });
 
 test("merge policy and CODEOWNERS protect control-plane changes only", () => {
