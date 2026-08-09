@@ -327,10 +327,20 @@ function verifyRewriteRows(root, rows, evidence, packageJson, allowedCommands) {
 }
 
 function assertReviewedAuthority(projection, equality, receipt, mergePolicy) {
-  const authority = mergePolicy.migration?.reviewed_authority;
-  if (!authority || typeof authority !== "object" || Array.isArray(authority)) {
+  const authorities = mergePolicy.migration?.reviewed_authorities;
+  if (!Array.isArray(authorities) || authorities.length === 0) {
     fail("reviewed migration authority is unavailable");
   }
+  const matchingAuthorities = authorities.filter(
+    (authority) =>
+      authority?.target_owner === projection.value.target_owner &&
+      authority?.task === projection.value.task &&
+      authority?.objective === projection.value.objective,
+  );
+  if (matchingAuthorities.length !== 1) {
+    fail("reviewed migration authority is unavailable or ambiguous");
+  }
+  const [authority] = matchingAuthorities;
   const expectedFields = [
     "target_owner",
     "task",
@@ -433,6 +443,9 @@ async function main() {
   validate(ajv.compile(selectionSchema), projection.value, "projection");
   validate(ajv.compile(equalitySchema), equality.value, "equality receipt");
   validate(ajv.compile(receiptSchema), receipt.value, "target receipt");
+  if ("empty_base_tree" in receipt.value === "base_tree" in receipt.value) {
+    fail("target receipt must declare exactly one migration base tree field");
+  }
   assertReviewedAuthority(projection, equality, receipt, mergePolicy);
 
   for (const field of ["target_owner", "task", "objective", "ledger_sha256"]) {
@@ -515,7 +528,7 @@ async function main() {
     `${args.base}^{commit}`,
   ]);
   if (resolvedBase !== args.base || receipt.value.base_commit !== args.base) {
-    fail("empty base commit mismatch");
+    fail("migration base commit mismatch");
   }
   if (args.target) {
     const resolvedTarget = gitText(args.root, [
@@ -523,41 +536,45 @@ async function main() {
       `${args.target}^{commit}`,
     ]);
     if (resolvedTarget !== args.target) {
-      fail("trust-base target commit mismatch");
+      fail("migration target commit mismatch");
     }
     if (
       gitText(args.root, ["show", "-s", "--format=%P", args.target]) !==
       args.base
     ) {
-      fail("trust-base target must have only the empty base as its parent");
+      fail("migration target must have only the declared base as its parent");
     }
   }
-  if (gitText(args.root, ["show", "-s", "--format=%P", args.base]) !== "") {
-    fail("bootstrap base is not a root commit");
-  }
   const baseTree = gitText(args.root, ["rev-parse", `${args.base}^{tree}`]);
-  if (
-    baseTree !== "4b825dc642cb6eb9a060e54bf8d69288fbee4904" ||
-    receipt.value.empty_base_tree !== baseTree
-  ) {
-    fail("bootstrap base is not the canonical empty tree");
+  if ("empty_base_tree" in receipt.value) {
+    if (gitText(args.root, ["show", "-s", "--format=%P", args.base]) !== "") {
+      fail("bootstrap base is not a root commit");
+    }
+    if (
+      baseTree !== "4b825dc642cb6eb9a060e54bf8d69288fbee4904" ||
+      receipt.value.empty_base_tree !== baseTree
+    ) {
+      fail("bootstrap base is not the canonical empty tree");
+    }
+    const baseIdentity = gitText(args.root, [
+      "show",
+      "-s",
+      "--format=%an%n%ae%n%cn%n%ce",
+      args.base,
+    ]).split("\n");
+    exactArray(
+      baseIdentity,
+      [
+        "SonSangjoon",
+        "74908906+SonSangjoon@users.noreply.github.com",
+        "SonSangjoon",
+        "74908906+SonSangjoon@users.noreply.github.com",
+      ],
+      "empty base identity",
+    );
+  } else if (receipt.value.base_tree !== baseTree) {
+    fail("migration base tree mismatch");
   }
-  const baseIdentity = gitText(args.root, [
-    "show",
-    "-s",
-    "--format=%an%n%ae%n%cn%n%ce",
-    args.base,
-  ]).split("\n");
-  exactArray(
-    baseIdentity,
-    [
-      "SonSangjoon",
-      "74908906+SonSangjoon@users.noreply.github.com",
-      "SonSangjoon",
-      "74908906+SonSangjoon@users.noreply.github.com",
-    ],
-    "empty base identity",
-  );
 
   const rows = projection.value.selected_rows;
   await verifyMigrateRows(
