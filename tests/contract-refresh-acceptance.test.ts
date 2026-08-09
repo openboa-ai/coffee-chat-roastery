@@ -466,6 +466,23 @@ describe("protected contract refresh", () => {
     });
   });
 
+  test("rejects duplicate paths in committed contract trees", async () => {
+    const fixture = remember(
+      createSyntheticContractRefreshFixture(undefined, {
+        newContractDuplicatePath: "contract.json",
+      }),
+    );
+    const { evaluateContractRefreshCandidate } =
+      await import("../src/validation/repository.js");
+
+    await expect(
+      evaluateContractRefreshCandidate(inputFrom(fixture)),
+    ).resolves.toEqual({
+      status: "rejected",
+      reason: "bundle_byte_mismatch",
+    });
+  });
+
   test.each([
     {
       name: "missing review",

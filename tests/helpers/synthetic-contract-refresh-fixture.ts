@@ -52,6 +52,7 @@ export interface SyntheticRefreshOptions {
   aliasNewBundleToOld?: boolean;
   newDeclaredRepository?: string;
   newContractGitlink?: boolean;
+  newContractDuplicatePath?: string;
   mutateOldBundle?: (root: string) => void;
   mutateNewBundle?: (root: string) => void;
 }
@@ -144,6 +145,65 @@ function commitAll(root: string, message: string): string {
   return git(root, ["rev-parse", "HEAD"]);
 }
 
+function commitDuplicateContractPath(
+  root: string,
+  commit: string,
+  duplicatePath: string,
+): string {
+  const contractTree = git(root, ["rev-parse", `${commit}:contract`]);
+  const entries = execFileSync(
+    "git",
+    ["-C", root, "ls-tree", "-z", contractTree],
+    { encoding: "buffer" },
+  )
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
+  const treeEntries: Buffer[] = [];
+  let duplicated = false;
+  for (const entry of entries) {
+    const match = /^([0-7]+) (?:blob|tree) ([0-9a-f]{40})\t(.+)$/u.exec(entry);
+    if (match === null) throw new Error("synthetic tree entry is invalid");
+    const encoded = Buffer.concat([
+      Buffer.from(`${match[1]} ${match[3]}\0`),
+      Buffer.from(match[2] as string, "hex"),
+    ]);
+    treeEntries.push(encoded);
+    if (match[3] === duplicatePath) {
+      treeEntries.push(encoded);
+      duplicated = true;
+    }
+  }
+  if (!duplicated) throw new Error("synthetic duplicate path was not found");
+  const malformedContractTree = execFileSync(
+    "git",
+    ["-C", root, "hash-object", "-t", "tree", "--literally", "-w", "--stdin"],
+    { encoding: "utf8", input: Buffer.concat(treeEntries) },
+  ).trim();
+  const rootTreeInput = `${git(root, ["ls-tree", commit])
+    .split("\n")
+    .map((entry) =>
+      entry.endsWith("\tcontract")
+        ? `040000 tree ${malformedContractTree}\tcontract`
+        : entry,
+    )
+    .join("\n")}\n`;
+  const rootTree = execFileSync("git", ["-C", root, "mktree"], {
+    encoding: "utf8",
+    input: rootTreeInput,
+  }).trim();
+  const malformedCommit = git(root, [
+    "commit-tree",
+    rootTree,
+    "-p",
+    commit,
+    "-m",
+    "synthetic duplicate contract path",
+  ]);
+  git(root, ["update-ref", "HEAD", malformedCommit]);
+  return malformedCommit;
+}
+
 function basePolicy(): ContentLicensePolicy {
   const contract = JSON.parse(
     readFileSync(resolve(repositoryRoot, "contract/contract.json"), "utf8"),
@@ -207,6 +267,7 @@ function createBundle(
   policy: ContentLicensePolicy,
   mutate?: (root: string) => void,
   contractGitlink = false,
+  duplicatePath?: string,
 ): SyntheticBundle {
   const repository = `https://github.com/synthetic-fixture/${name}`;
   const root = join(parent, name);
@@ -226,7 +287,10 @@ function createBundle(
   }
   initializeGit(root);
   git(root, ["remote", "add", "origin", repository]);
-  const commit = commitAll(root, `synthetic ${name}`);
+  let commit = commitAll(root, `synthetic ${name}`);
+  if (duplicatePath !== undefined) {
+    commit = commitDuplicateContractPath(root, commit, duplicatePath);
+  }
   if (contractGitlink) {
     rmSync(join(root, "contract", ".git"), { force: true, recursive: true });
     git(root, ["config", "diff.ignoreSubmodules", "all"]);
@@ -274,6 +338,7 @@ export function createSyntheticContractRefreshFixture(
         newPolicy,
         options.mutateNewBundle,
         options.newContractGitlink,
+        options.newContractDuplicatePath,
       );
   const newBundle = options.newDeclaredRepository
     ? { ...createdNewBundle, repository: options.newDeclaredRepository }
