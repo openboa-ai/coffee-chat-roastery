@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { isIP } from "node:net";
-import { basename, relative, resolve, sep } from "node:path";
+import { basename, resolve, sep } from "node:path";
 
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
 
