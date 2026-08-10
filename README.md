@@ -12,8 +12,7 @@ canonical fork seed is:
 ```text
 roastery/
 ├── roastery.json
-├── index.json
-└── beans/
+└── index.json
 ```
 
 After the Plugin's accepted Init flow, a personal fork additionally contains
