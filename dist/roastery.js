@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
+import { TextDecoder } from "node:util";
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
 import { captureDirectory, readVerifiedFile, UnsafeReadError, verifyDirectories, verifyFiles, } from "./verified-read.js";
 const OFFICIAL_REPOSITORY = "https://github.com/openboa-ai/coffee-chat-roastery";
@@ -10,6 +11,10 @@ const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const URL_FORBIDDEN_SYNTAX = /[\\\s\u0000-\u001f\u007f-\u009f]/u;
 const URI_MALFORMED_PERCENT_ESCAPE = /%(?![0-9A-Fa-f]{2})/u;
+const UTF8_DECODER = new TextDecoder("utf-8", {
+    fatal: true,
+    ignoreBOM: true,
+});
 const SPECIAL_USE_DNS_TLDS = new Set([
     "alt",
     "arpa",
@@ -30,6 +35,14 @@ class ValidationError extends Error {
 }
 function fail(code) {
     throw new ValidationError(code);
+}
+function decodeUtf8(content, code) {
+    try {
+        return UTF8_DECODER.decode(content);
+    }
+    catch {
+        fail(code);
+    }
 }
 function invalidResult(error) {
     if (error instanceof ContentLicenseError ||
@@ -53,7 +66,7 @@ function readJson(path, directories, files, keys, code) {
     let source;
     let parsed;
     try {
-        source = readVerifiedFile(path, directories, files, "unsafe_path").toString("utf8");
+        source = decodeUtf8(readVerifiedFile(path, directories, files, "unsafe_path"), code);
         parsed = JSON.parse(source);
     }
     catch (error) {
@@ -162,7 +175,7 @@ function publicOrigin(value) {
 }
 function parseBean(path, directories, files) {
     const content = readVerifiedFile(path, directories, files, "unsafe_path");
-    const source = content.toString("utf8");
+    const source = decodeUtf8(content, "invalid_bean");
     if (!source.startsWith("---\n"))
         fail("invalid_bean");
     const end = source.indexOf("\n---\n", 4);
@@ -321,7 +334,7 @@ export function validate({ root, mode, expectedContract, }) {
             }
             if (licenseEntry === undefined)
                 fail("invalid_content_license");
-            parseContentLicense(readVerifiedFile(licensePath, context.directories, context.files, "unsafe_path").toString("utf8"));
+            parseContentLicense(decodeUtf8(readVerifiedFile(licensePath, context.directories, context.files, "unsafe_path"), "invalid_content_license"));
         }
         verifyDirectories(context.directories, "unsafe_path");
         verifyFiles(context.files, "unsafe_path");

@@ -173,6 +173,28 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
       }),
       { code: "contract_mismatch", status: "invalid" },
     );
+    const replacementLicense = Buffer.from(
+      renderContentLicense("Owner �").content,
+      "utf8",
+    );
+    writeFileSync(
+      join(owner, "roastery", "CONTENT_LICENSE.md"),
+      Buffer.from(
+        replacementLicense.toString("hex").replaceAll("efbfbd", "ff"),
+        "hex",
+      ),
+    );
+    assert.deepEqual(
+      validate({
+        root: owner,
+        mode: "initialized",
+        expectedContract: contract,
+      }),
+      {
+        code: "invalid_content_license",
+        status: "invalid",
+      },
+    );
     rmSync(join(owner, "roastery", "CONTENT_LICENSE.md"));
     assert.deepEqual(
       validate({

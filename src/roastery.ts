@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
+import { TextDecoder } from "node:util";
 
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
 import {
@@ -22,6 +23,10 @@ const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const URL_FORBIDDEN_SYNTAX = /[\\\s\u0000-\u001f\u007f-\u009f]/u;
 const URI_MALFORMED_PERCENT_ESCAPE = /%(?![0-9A-Fa-f]{2})/u;
+const UTF8_DECODER = new TextDecoder("utf-8", {
+  fatal: true,
+  ignoreBOM: true,
+});
 const SPECIAL_USE_DNS_TLDS = new Set([
   "alt",
   "arpa",
@@ -73,6 +78,14 @@ function fail(code: string): never {
   throw new ValidationError(code);
 }
 
+function decodeUtf8(content: Buffer, code: string): string {
+  try {
+    return UTF8_DECODER.decode(content);
+  } catch {
+    fail(code);
+  }
+}
+
 function invalidResult(error: unknown): { code: string; status: "invalid" } {
   if (
     error instanceof ContentLicenseError ||
@@ -111,8 +124,9 @@ function readJson(
   let source: string;
   let parsed: unknown;
   try {
-    source = readVerifiedFile(path, directories, files, "unsafe_path").toString(
-      "utf8",
+    source = decodeUtf8(
+      readVerifiedFile(path, directories, files, "unsafe_path"),
+      code,
     );
     parsed = JSON.parse(source);
   } catch (error) {
@@ -244,7 +258,7 @@ function parseBean(
   files: FileIdentity[],
 ): { content: Buffer; id: string } {
   const content = readVerifiedFile(path, directories, files, "unsafe_path");
-  const source = content.toString("utf8");
+  const source = decodeUtf8(content, "invalid_bean");
   if (!source.startsWith("---\n")) fail("invalid_bean");
   const end = source.indexOf("\n---\n", 4);
   if (end < 0) fail("invalid_bean");
@@ -450,12 +464,15 @@ export function validate({
       }
       if (licenseEntry === undefined) fail("invalid_content_license");
       parseContentLicense(
-        readVerifiedFile(
-          licensePath,
-          context.directories,
-          context.files,
-          "unsafe_path",
-        ).toString("utf8"),
+        decodeUtf8(
+          readVerifiedFile(
+            licensePath,
+            context.directories,
+            context.files,
+            "unsafe_path",
+          ),
+          "invalid_content_license",
+        ),
       );
     }
     verifyDirectories(context.directories, "unsafe_path");
