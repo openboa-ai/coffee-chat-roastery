@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
 
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
+import {
+  captureDirectory,
+  readVerifiedFile,
+  UnsafeReadError,
+  verifyDirectories,
+  type DirectoryIdentity,
+} from "./verified-read.js";
 
 const OFFICIAL_REPOSITORY =
   "https://github.com/openboa-ai/coffee-chat-roastery" as const;
@@ -67,7 +74,8 @@ function fail(code: string): never {
 function invalidResult(error: unknown): { code: string; status: "invalid" } {
   if (
     error instanceof ContentLicenseError ||
-    error instanceof ValidationError
+    error instanceof ValidationError ||
+    error instanceof UnsafeReadError
   ) {
     return { code: error.code, status: "invalid" };
   }
@@ -93,20 +101,24 @@ function object(
 
 function readJson(
   path: string,
+  directories: DirectoryIdentity[],
   keys: string[],
   code: string,
-): Record<string, unknown> {
+): { document: Record<string, unknown>; source: string } {
   let source: string;
   let parsed: unknown;
   try {
-    source = readFileSync(path, "utf8");
+    source = readVerifiedFile(path, directories, "unsafe_path").toString(
+      "utf8",
+    );
     parsed = JSON.parse(source);
-  } catch {
+  } catch (error) {
+    if (error instanceof UnsafeReadError) throw error;
     fail(code);
   }
   const result = object(parsed, keys, code);
   if (source !== `${JSON.stringify(parsed, null, 2)}\n`) fail(code);
-  return result;
+  return { document: result, source };
 }
 
 function normalizeRepository(value: unknown): string {
@@ -223,8 +235,11 @@ function publicOrigin(value: string): boolean {
   );
 }
 
-function parseBean(path: string): { content: Buffer; id: string } {
-  const content = readFileSync(path);
+function parseBean(
+  path: string,
+  directories: DirectoryIdentity[],
+): { content: Buffer; id: string } {
+  const content = readVerifiedFile(path, directories, "unsafe_path");
   const source = content.toString("utf8");
   if (!source.startsWith("---\n")) fail("invalid_bean");
   const end = source.indexOf("\n---\n", 4);
@@ -257,25 +272,52 @@ function parseBean(path: string): { content: Buffer; id: string } {
   return { content, id };
 }
 
-function scanBeans(root: string): IndexEntry[] {
-  const roasteryRoot = resolve(root, "roastery");
-  safeChild(root, roasteryRoot);
-  const directory = resolve(root, "roastery", "beans");
+interface RoasteryContext {
+  directories: DirectoryIdentity[];
+  roasteryRoot: string;
+  root: string;
+}
+
+function createContext(root: string): RoasteryContext {
+  const repositoryRoot = resolve(root);
+  const repository = captureDirectory(repositoryRoot, [], "unsafe_path");
+  const roasteryRoot = resolve(repositoryRoot, "roastery");
+  safeChild(repositoryRoot, roasteryRoot);
+  const roastery = captureDirectory(roasteryRoot, [repository], "unsafe_path");
+  return {
+    directories: [repository, roastery],
+    roasteryRoot,
+    root: repositoryRoot,
+  };
+}
+
+function scanBeans(context: RoasteryContext): IndexEntry[] {
+  const directory = resolve(context.roasteryRoot, "beans");
   const directoryEntry = lstatSync(directory, { throwIfNoEntry: false });
-  if (directoryEntry === undefined) return [];
+  if (directoryEntry === undefined) {
+    verifyDirectories(context.directories, "unsafe_path");
+    return [];
+  }
   if (!directoryEntry.isDirectory() || directoryEntry.isSymbolicLink()) {
     fail("unsafe_path");
   }
-  safeChild(root, directory);
+  safeChild(context.root, directory);
+  const beansDirectory = captureDirectory(
+    directory,
+    context.directories,
+    "unsafe_path",
+  );
+  const directories = [...context.directories, beansDirectory];
   const ids = new Set<string>();
   const entries = readdirSync(directory, { withFileTypes: true });
   const beans: IndexEntry[] = [];
   for (const entry of entries) {
     const path = resolve(directory, entry.name);
-    if (!entry.isFile() || entry.isSymbolicLink()) fail("unsafe_path");
-    safeChild(root, path);
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_path");
+    safeChild(context.root, path);
     if (!entry.name.endsWith(".md")) fail("invalid_bean_path");
-    const bean = parseBean(path);
+    const bean = parseBean(path, directories);
     if (ids.has(bean.id)) fail("duplicate_bean_id");
     ids.add(bean.id);
     beans.push({
@@ -283,6 +325,7 @@ function scanBeans(root: string): IndexEntry[] {
       digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
     });
   }
+  verifyDirectories(directories, "unsafe_path");
   return beans.sort((left, right) =>
     left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
   );
@@ -293,19 +336,28 @@ function indexBytes(beans: IndexEntry[]): string {
 }
 
 export function projectIndex({ root }: { root: string }): ProjectIndexResult {
-  const beans = scanBeans(root);
+  const context = createContext(root);
+  const beans = scanBeans(context);
+  verifyDirectories(context.directories, "unsafe_path");
   return { beans, bytes: indexBytes(beans), status: "projected" };
 }
 
 export function checkIndex({ root }: { root: string }): IndexCheckResult {
   try {
-    const projected = projectIndex({ root });
-    const indexPath = resolve(root, "roastery", "index.json");
-    safeChild(root, indexPath);
-    if (readFileSync(indexPath, "utf8") !== projected.bytes) {
+    const context = createContext(root);
+    const beans = scanBeans(context);
+    const projected = indexBytes(beans);
+    const indexPath = resolve(context.roasteryRoot, "index.json");
+    safeChild(context.root, indexPath);
+    if (
+      readVerifiedFile(indexPath, context.directories, "unsafe_path").toString(
+        "utf8",
+      ) !== projected
+    ) {
       fail("stale_index");
     }
-    return { beans: projected.beans.length, status: "valid" };
+    verifyDirectories(context.directories, "unsafe_path");
+    return { beans: beans.length, status: "valid" };
   } catch (error) {
     return invalidResult(error);
   }
@@ -321,15 +373,15 @@ export function validate({
   expectedContract: ContractPin;
 }): ValidationResult {
   try {
-    const roasteryRoot = resolve(root, "roastery");
-    safeChild(root, roasteryRoot);
-    const manifestPath = resolve(roasteryRoot, "roastery.json");
-    safeChild(root, manifestPath);
+    const context = createContext(root);
+    const manifestPath = resolve(context.roasteryRoot, "roastery.json");
+    safeChild(context.root, manifestPath);
     const manifest = readJson(
       manifestPath,
+      context.directories,
       ["contract", "repository"],
       "invalid_roastery",
-    );
+    ).document;
     const repository = normalizeRepository(manifest.repository);
     const actualContract = contractPin(manifest.contract);
     const trustedContract = contractPin(expectedContract);
@@ -340,18 +392,23 @@ export function validate({
     ) {
       fail("contract_mismatch");
     }
-    const beans = scanBeans(root);
-    const indexPath = resolve(roasteryRoot, "index.json");
-    safeChild(root, indexPath);
-    const index = readJson(indexPath, ["beans"], "invalid_index");
+    const beans = scanBeans(context);
+    const indexPath = resolve(context.roasteryRoot, "index.json");
+    safeChild(context.root, indexPath);
+    const index = readJson(
+      indexPath,
+      context.directories,
+      ["beans"],
+      "invalid_index",
+    );
     if (
-      !Array.isArray(index.beans) ||
-      readFileSync(indexPath, "utf8") !== indexBytes(beans)
+      !Array.isArray(index.document.beans) ||
+      index.source !== indexBytes(beans)
     ) {
       fail("stale_index");
     }
 
-    const licensePath = resolve(roasteryRoot, "CONTENT_LICENSE.md");
+    const licensePath = resolve(context.roasteryRoot, "CONTENT_LICENSE.md");
     const licenseEntry = lstatSync(licensePath, { throwIfNoEntry: false });
     if (
       licenseEntry !== undefined &&
@@ -359,7 +416,7 @@ export function validate({
     ) {
       fail("unsafe_path");
     }
-    if (licenseEntry !== undefined) safeChild(root, licensePath);
+    if (licenseEntry !== undefined) safeChild(context.root, licensePath);
     const effectiveMode =
       mode ?? (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
     if (effectiveMode === "seed") {
@@ -378,8 +435,15 @@ export function validate({
         fail("invalid_repository_identity");
       }
       if (licenseEntry === undefined) fail("invalid_content_license");
-      parseContentLicense(readFileSync(licensePath, "utf8"));
+      parseContentLicense(
+        readVerifiedFile(
+          licensePath,
+          context.directories,
+          "unsafe_path",
+        ).toString("utf8"),
+      );
     }
+    verifyDirectories(context.directories, "unsafe_path");
     return { beanCount: beans.length, repository, status: "valid" };
   } catch (error) {
     return invalidResult(error);

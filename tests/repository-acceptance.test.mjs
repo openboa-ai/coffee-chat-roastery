@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,6 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -234,6 +236,38 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
         .status,
       "valid",
     );
+
+    const outsideBean = join(external, `${id}.md`);
+    writeFileSync(
+      outsideBean,
+      bean.replace("A deliberate point of view.", "Outside bytes."),
+    );
+    const originalRealpath = fs.realpathSync;
+    let beanSwapped = false;
+    Object.defineProperty(fs, "realpathSync", {
+      configurable: true,
+      value: function realpathAndSwap(path, options) {
+        const resolved = originalRealpath.call(fs, path, options);
+        if (!beanSwapped && String(path) === beanPath) {
+          beanSwapped = true;
+          fs.unlinkSync(beanPath);
+          fs.symlinkSync(outsideBean, beanPath);
+        }
+        return resolved;
+      },
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => projectIndex({ root }), /unsafe_path/u);
+    } finally {
+      Object.defineProperty(fs, "realpathSync", {
+        configurable: true,
+        value: originalRealpath,
+      });
+      syncBuiltinESMExports();
+      fs.unlinkSync(beanPath);
+      writeFileSync(beanPath, bean);
+    }
 
     for (const unsafeOrigin of [
       "localhost",

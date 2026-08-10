@@ -119,6 +119,9 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
   const sandbox = mkdtempSync(join(tmpdir(), "roastery-contract-"));
   const linked = mkdtempSync(join(tmpdir(), "roastery-contract-link-"));
   const raced = mkdtempSync(join(tmpdir(), "roastery-contract-race-"));
+  const directoryRace = mkdtempSync(
+    join(tmpdir(), "roastery-contract-directory-race-"),
+  );
   const external = mkdtempSync(join(tmpdir(), "roastery-contract-external-"));
   try {
     cpSync(contractRoot, join(sandbox, "contract"), { recursive: true });
@@ -166,11 +169,47 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
       });
       syncBuiltinESMExports();
     }
+
+    cpSync(contractRoot, join(directoryRace, "contract"), {
+      recursive: true,
+    });
+    const schemas = join(directoryRace, "contract", "schemas");
+    const movedSchemas = join(directoryRace, "contract", "schemas-original");
+    const externalSchemas = join(external, "schemas");
+    fs.mkdirSync(externalSchemas);
+    writeFileSync(join(externalSchemas, "outside.json"), "{}\n");
+    let directorySwapped = false;
+    Object.defineProperty(fs, "lstatSync", {
+      configurable: true,
+      value: function lstatAndSwapDirectory(path, options) {
+        const stat = originalLstat.call(fs, path, options);
+        if (!directorySwapped && String(path) === schemas) {
+          directorySwapped = true;
+          fs.renameSync(schemas, movedSchemas);
+          fs.symlinkSync(externalSchemas, schemas);
+        }
+        return stat;
+      },
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(
+        () => computeContractDigest(directoryRace),
+        /unsafe_contract_entry/u,
+      );
+    } finally {
+      Object.defineProperty(fs, "lstatSync", {
+        configurable: true,
+        value: originalLstat,
+      });
+      syncBuiltinESMExports();
+    }
   } finally {
     syncBuiltinESMExports();
     rmSync(sandbox, { force: true, recursive: true });
     rmSync(linked, { force: true, recursive: true });
     rmSync(raced, { force: true, recursive: true });
+    rmSync(directoryRace, { force: true, recursive: true });
     rmSync(external, { force: true, recursive: true });
   }
 });
