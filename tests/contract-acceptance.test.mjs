@@ -215,6 +215,12 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
       () => computeContractDigest(malformedNames),
       /unsafe_contract_entry/u,
     );
+    rmSync(join(malformedContract, "�"));
+    writeFileSync(join(malformedContract, "CON"), "reserved name\n");
+    assert.throws(
+      () => computeContractDigest(malformedNames),
+      /unsafe_contract_entry/u,
+    );
   } finally {
     syncBuiltinESMExports();
     rmSync(sandbox, { force: true, recursive: true });
