@@ -269,6 +269,41 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
       writeFileSync(beanPath, bean);
     }
 
+    const indexPath = join(root, "roastery", "index.json");
+    const originalLstat = fs.lstatSync;
+    let beanModified = false;
+    Object.defineProperty(fs, "lstatSync", {
+      configurable: true,
+      value: function lstatAndModifyBean(path, options) {
+        const stat = originalLstat.call(fs, path, options);
+        if (!beanModified && String(path) === indexPath) {
+          beanModified = true;
+          fs.writeFileSync(
+            beanPath,
+            bean.replace(
+              "A deliberate point of view.",
+              "Changed after Bean validation.",
+            ),
+          );
+        }
+        return stat;
+      },
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.deepEqual(
+        validate({ root, mode: "initialized", expectedContract: contract }),
+        { code: "unsafe_path", status: "invalid" },
+      );
+    } finally {
+      Object.defineProperty(fs, "lstatSync", {
+        configurable: true,
+        value: originalLstat,
+      });
+      syncBuiltinESMExports();
+      writeFileSync(beanPath, bean);
+    }
+
     for (const unsafeOrigin of [
       "localhost",
       "localhost.",
@@ -357,7 +392,6 @@ test("projection is deterministic and validation rejects unsafe or stale Bean st
     );
     unlinkSync(unsafeBean);
 
-    const indexPath = join(root, "roastery", "index.json");
     unlinkSync(indexPath);
     symlinkSync(externalTarget, indexPath);
     assert.equal(projectIndex({ root }).bytes, expectedIndex);

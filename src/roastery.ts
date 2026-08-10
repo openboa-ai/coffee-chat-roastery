@@ -9,7 +9,9 @@ import {
   readVerifiedFile,
   UnsafeReadError,
   verifyDirectories,
+  verifyFiles,
   type DirectoryIdentity,
+  type FileIdentity,
 } from "./verified-read.js";
 
 const OFFICIAL_REPOSITORY =
@@ -102,13 +104,14 @@ function object(
 function readJson(
   path: string,
   directories: DirectoryIdentity[],
+  files: FileIdentity[],
   keys: string[],
   code: string,
 ): { document: Record<string, unknown>; source: string } {
   let source: string;
   let parsed: unknown;
   try {
-    source = readVerifiedFile(path, directories, "unsafe_path").toString(
+    source = readVerifiedFile(path, directories, files, "unsafe_path").toString(
       "utf8",
     );
     parsed = JSON.parse(source);
@@ -238,8 +241,9 @@ function publicOrigin(value: string): boolean {
 function parseBean(
   path: string,
   directories: DirectoryIdentity[],
+  files: FileIdentity[],
 ): { content: Buffer; id: string } {
-  const content = readVerifiedFile(path, directories, "unsafe_path");
+  const content = readVerifiedFile(path, directories, files, "unsafe_path");
   const source = content.toString("utf8");
   if (!source.startsWith("---\n")) fail("invalid_bean");
   const end = source.indexOf("\n---\n", 4);
@@ -274,6 +278,7 @@ function parseBean(
 
 interface RoasteryContext {
   directories: DirectoryIdentity[];
+  files: FileIdentity[];
   roasteryRoot: string;
   root: string;
 }
@@ -286,6 +291,7 @@ function createContext(root: string): RoasteryContext {
   const roastery = captureDirectory(roasteryRoot, [repository], "unsafe_path");
   return {
     directories: [repository, roastery],
+    files: [],
     roasteryRoot,
     root: repositoryRoot,
   };
@@ -307,7 +313,7 @@ function scanBeans(context: RoasteryContext): IndexEntry[] {
     context.directories,
     "unsafe_path",
   );
-  const directories = [...context.directories, beansDirectory];
+  context.directories.push(beansDirectory);
   const ids = new Set<string>();
   const entries = readdirSync(directory, { withFileTypes: true });
   const beans: IndexEntry[] = [];
@@ -317,7 +323,7 @@ function scanBeans(context: RoasteryContext): IndexEntry[] {
     if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_path");
     safeChild(context.root, path);
     if (!entry.name.endsWith(".md")) fail("invalid_bean_path");
-    const bean = parseBean(path, directories);
+    const bean = parseBean(path, context.directories, context.files);
     if (ids.has(bean.id)) fail("duplicate_bean_id");
     ids.add(bean.id);
     beans.push({
@@ -325,7 +331,8 @@ function scanBeans(context: RoasteryContext): IndexEntry[] {
       digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
     });
   }
-  verifyDirectories(directories, "unsafe_path");
+  verifyDirectories(context.directories, "unsafe_path");
+  verifyFiles(context.files, "unsafe_path");
   return beans.sort((left, right) =>
     left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
   );
@@ -339,6 +346,7 @@ export function projectIndex({ root }: { root: string }): ProjectIndexResult {
   const context = createContext(root);
   const beans = scanBeans(context);
   verifyDirectories(context.directories, "unsafe_path");
+  verifyFiles(context.files, "unsafe_path");
   return { beans, bytes: indexBytes(beans), status: "projected" };
 }
 
@@ -350,13 +358,17 @@ export function checkIndex({ root }: { root: string }): IndexCheckResult {
     const indexPath = resolve(context.roasteryRoot, "index.json");
     safeChild(context.root, indexPath);
     if (
-      readVerifiedFile(indexPath, context.directories, "unsafe_path").toString(
-        "utf8",
-      ) !== projected
+      readVerifiedFile(
+        indexPath,
+        context.directories,
+        context.files,
+        "unsafe_path",
+      ).toString("utf8") !== projected
     ) {
       fail("stale_index");
     }
     verifyDirectories(context.directories, "unsafe_path");
+    verifyFiles(context.files, "unsafe_path");
     return { beans: beans.length, status: "valid" };
   } catch (error) {
     return invalidResult(error);
@@ -379,6 +391,7 @@ export function validate({
     const manifest = readJson(
       manifestPath,
       context.directories,
+      context.files,
       ["contract", "repository"],
       "invalid_roastery",
     ).document;
@@ -398,6 +411,7 @@ export function validate({
     const index = readJson(
       indexPath,
       context.directories,
+      context.files,
       ["beans"],
       "invalid_index",
     );
@@ -439,11 +453,13 @@ export function validate({
         readVerifiedFile(
           licensePath,
           context.directories,
+          context.files,
           "unsafe_path",
         ).toString("utf8"),
       );
     }
     verifyDirectories(context.directories, "unsafe_path");
+    verifyFiles(context.files, "unsafe_path");
     return { beanCount: beans.length, repository, status: "valid" };
   } catch (error) {
     return invalidResult(error);

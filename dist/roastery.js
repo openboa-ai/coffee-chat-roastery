@@ -3,7 +3,7 @@ import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
 import { ContentLicenseError, parseContentLicense } from "./content-license.js";
-import { captureDirectory, readVerifiedFile, UnsafeReadError, verifyDirectories, } from "./verified-read.js";
+import { captureDirectory, readVerifiedFile, UnsafeReadError, verifyDirectories, verifyFiles, } from "./verified-read.js";
 const OFFICIAL_REPOSITORY = "https://github.com/openboa-ai/coffee-chat-roastery";
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SHA = /^[0-9a-f]{40}$/u;
@@ -49,11 +49,11 @@ function object(value, keys, code) {
     }
     return value;
 }
-function readJson(path, directories, keys, code) {
+function readJson(path, directories, files, keys, code) {
     let source;
     let parsed;
     try {
-        source = readVerifiedFile(path, directories, "unsafe_path").toString("utf8");
+        source = readVerifiedFile(path, directories, files, "unsafe_path").toString("utf8");
         parsed = JSON.parse(source);
     }
     catch (error) {
@@ -160,8 +160,8 @@ function publicOrigin(value) {
         !SPECIAL_USE_DNS_TLDS.has(labels.at(-1) ?? "") &&
         labels.every((label) => /^(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,61}[a-z0-9])$/u.test(label)));
 }
-function parseBean(path, directories) {
-    const content = readVerifiedFile(path, directories, "unsafe_path");
+function parseBean(path, directories, files) {
+    const content = readVerifiedFile(path, directories, files, "unsafe_path");
     const source = content.toString("utf8");
     if (!source.startsWith("---\n"))
         fail("invalid_bean");
@@ -206,6 +206,7 @@ function createContext(root) {
     const roastery = captureDirectory(roasteryRoot, [repository], "unsafe_path");
     return {
         directories: [repository, roastery],
+        files: [],
         roasteryRoot,
         root: repositoryRoot,
     };
@@ -222,7 +223,7 @@ function scanBeans(context) {
     }
     safeChild(context.root, directory);
     const beansDirectory = captureDirectory(directory, context.directories, "unsafe_path");
-    const directories = [...context.directories, beansDirectory];
+    context.directories.push(beansDirectory);
     const ids = new Set();
     const entries = readdirSync(directory, { withFileTypes: true });
     const beans = [];
@@ -234,7 +235,7 @@ function scanBeans(context) {
         safeChild(context.root, path);
         if (!entry.name.endsWith(".md"))
             fail("invalid_bean_path");
-        const bean = parseBean(path, directories);
+        const bean = parseBean(path, context.directories, context.files);
         if (ids.has(bean.id))
             fail("duplicate_bean_id");
         ids.add(bean.id);
@@ -243,7 +244,8 @@ function scanBeans(context) {
             digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
         });
     }
-    verifyDirectories(directories, "unsafe_path");
+    verifyDirectories(context.directories, "unsafe_path");
+    verifyFiles(context.files, "unsafe_path");
     return beans.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
 }
 function indexBytes(beans) {
@@ -253,6 +255,7 @@ export function projectIndex({ root }) {
     const context = createContext(root);
     const beans = scanBeans(context);
     verifyDirectories(context.directories, "unsafe_path");
+    verifyFiles(context.files, "unsafe_path");
     return { beans, bytes: indexBytes(beans), status: "projected" };
 }
 export function checkIndex({ root }) {
@@ -262,10 +265,11 @@ export function checkIndex({ root }) {
         const projected = indexBytes(beans);
         const indexPath = resolve(context.roasteryRoot, "index.json");
         safeChild(context.root, indexPath);
-        if (readVerifiedFile(indexPath, context.directories, "unsafe_path").toString("utf8") !== projected) {
+        if (readVerifiedFile(indexPath, context.directories, context.files, "unsafe_path").toString("utf8") !== projected) {
             fail("stale_index");
         }
         verifyDirectories(context.directories, "unsafe_path");
+        verifyFiles(context.files, "unsafe_path");
         return { beans: beans.length, status: "valid" };
     }
     catch (error) {
@@ -277,7 +281,7 @@ export function validate({ root, mode, expectedContract, }) {
         const context = createContext(root);
         const manifestPath = resolve(context.roasteryRoot, "roastery.json");
         safeChild(context.root, manifestPath);
-        const manifest = readJson(manifestPath, context.directories, ["contract", "repository"], "invalid_roastery").document;
+        const manifest = readJson(manifestPath, context.directories, context.files, ["contract", "repository"], "invalid_roastery").document;
         const repository = normalizeRepository(manifest.repository);
         const actualContract = contractPin(manifest.contract);
         const trustedContract = contractPin(expectedContract);
@@ -289,7 +293,7 @@ export function validate({ root, mode, expectedContract, }) {
         const beans = scanBeans(context);
         const indexPath = resolve(context.roasteryRoot, "index.json");
         safeChild(context.root, indexPath);
-        const index = readJson(indexPath, context.directories, ["beans"], "invalid_index");
+        const index = readJson(indexPath, context.directories, context.files, ["beans"], "invalid_index");
         if (!Array.isArray(index.document.beans) ||
             index.source !== indexBytes(beans)) {
             fail("stale_index");
@@ -317,9 +321,10 @@ export function validate({ root, mode, expectedContract, }) {
             }
             if (licenseEntry === undefined)
                 fail("invalid_content_license");
-            parseContentLicense(readVerifiedFile(licensePath, context.directories, "unsafe_path").toString("utf8"));
+            parseContentLicense(readVerifiedFile(licensePath, context.directories, context.files, "unsafe_path").toString("utf8"));
         }
         verifyDirectories(context.directories, "unsafe_path");
+        verifyFiles(context.files, "unsafe_path");
         return { beanCount: beans.length, repository, status: "valid" };
     }
     catch (error) {

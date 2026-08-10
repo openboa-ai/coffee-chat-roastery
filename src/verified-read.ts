@@ -30,6 +30,8 @@ export interface DirectoryIdentity {
   size: number;
 }
 
+export interface FileIdentity extends DirectoryIdentity {}
+
 function fail(code: string): never {
   throw new UnsafeReadError(code);
 }
@@ -60,12 +62,37 @@ function verifyDirectory(identity: DirectoryIdentity, code: string): void {
   }
 }
 
+function verifyFile(identity: FileIdentity, code: string): void {
+  const current = lstatSync(identity.path);
+  if (
+    current.isSymbolicLink() ||
+    !current.isFile() ||
+    current.dev !== identity.dev ||
+    current.ino !== identity.ino ||
+    current.size !== identity.size ||
+    current.mtimeMs !== identity.mtimeMs ||
+    current.ctimeMs !== identity.ctimeMs ||
+    realpathSync(identity.path) !== identity.realPath
+  ) {
+    fail(code);
+  }
+}
+
 export function verifyDirectories(
   identities: DirectoryIdentity[],
   code: string,
 ): void {
   try {
     for (const identity of identities) verifyDirectory(identity, code);
+  } catch (error) {
+    if (error instanceof UnsafeReadError) throw error;
+    fail(code);
+  }
+}
+
+export function verifyFiles(identities: FileIdentity[], code: string): void {
+  try {
+    for (const identity of identities) verifyFile(identity, code);
   } catch (error) {
     if (error instanceof UnsafeReadError) throw error;
     fail(code);
@@ -121,6 +148,7 @@ export function captureDirectory(
 export function readVerifiedFile(
   path: string,
   ancestors: DirectoryIdentity[],
+  files: FileIdentity[],
   code: string,
 ): Buffer {
   let descriptor: number | undefined;
@@ -129,7 +157,9 @@ export function readVerifiedFile(
     const absolute = resolve(path);
     descriptor = openSync(
       absolute,
-      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+      constants.O_RDONLY |
+        (constants.O_NONBLOCK ?? 0) |
+        (constants.O_NOFOLLOW ?? 0),
     );
     const opened = fstatSync(descriptor);
     const current = lstatSync(absolute);
@@ -141,19 +171,22 @@ export function readVerifiedFile(
     ) {
       fail(code);
     }
+    const identity: FileIdentity = {
+      ctimeMs: opened.ctimeMs,
+      dev: opened.dev,
+      ino: opened.ino,
+      mtimeMs: opened.mtimeMs,
+      path: absolute,
+      realPath: realpathSync(absolute),
+      size: opened.size,
+    };
     verifyDirectories(ancestors, code);
     const content = readFileSync(descriptor);
     const afterRead = fstatSync(descriptor);
     if (!sameEntry(opened, afterRead)) fail(code);
     verifyDirectories(ancestors, code);
-    const afterPath = lstatSync(absolute);
-    if (
-      !afterPath.isFile() ||
-      afterPath.isSymbolicLink() ||
-      !sameEntry(opened, afterPath)
-    ) {
-      fail(code);
-    }
+    verifyFile(identity, code);
+    files.push(identity);
     return content;
   } catch (error) {
     if (error instanceof UnsafeReadError) throw error;

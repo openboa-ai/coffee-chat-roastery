@@ -6,7 +6,9 @@ import {
   captureDirectory,
   readVerifiedFile,
   verifyDirectories,
+  verifyFiles,
   type DirectoryIdentity,
+  type FileIdentity,
 } from "./verified-read.js";
 
 interface ContractFile {
@@ -18,6 +20,8 @@ function contractFiles(
   root: string,
   current: string,
   ancestors: DirectoryIdentity[],
+  allDirectories: DirectoryIdentity[],
+  allFiles: FileIdentity[],
 ): ContractFile[] {
   try {
     const directory = captureDirectory(
@@ -25,6 +29,7 @@ function contractFiles(
       ancestors,
       "unsafe_contract_entry",
     );
+    allDirectories.push(directory);
     const directories = [...ancestors, directory];
     const files = readdirSync(current, { withFileTypes: true }).flatMap(
       (entry) => {
@@ -32,13 +37,20 @@ function contractFiles(
         const stat = lstatSync(absolute);
         if (stat.isSymbolicLink()) throw new Error("unsafe_contract_entry");
         if (stat.isDirectory())
-          return contractFiles(root, absolute, directories);
+          return contractFiles(
+            root,
+            absolute,
+            directories,
+            allDirectories,
+            allFiles,
+          );
         if (!stat.isFile()) throw new Error("unsafe_contract_entry");
         return [
           {
             content: readVerifiedFile(
               absolute,
               directories,
+              allFiles,
               "unsafe_contract_entry",
             ),
             path: Buffer.from(
@@ -66,9 +78,17 @@ export function computeContractDigest(
   repositoryRoot: string,
 ): `sha256:${string}` {
   const contractRoot = resolve(repositoryRoot, "contract");
-  const files = contractFiles(contractRoot, contractRoot, []).sort(
-    (left, right) => left.path.compare(right.path),
-  );
+  const directories: DirectoryIdentity[] = [];
+  const fileIdentities: FileIdentity[] = [];
+  const files = contractFiles(
+    contractRoot,
+    contractRoot,
+    [],
+    directories,
+    fileIdentities,
+  ).sort((left, right) => left.path.compare(right.path));
+  verifyDirectories(directories, "unsafe_contract_entry");
+  verifyFiles(fileIdentities, "unsafe_contract_entry");
   const hash = createHash("sha256");
   for (const file of files) {
     hash.update(length(file.path.length));
