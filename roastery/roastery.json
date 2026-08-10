@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
+  "contract": {
+    "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
+    "commit": "d7d770af59a691b5ebceee9809ab436f32db33d5",
+    "digest": "sha256:878704aa835d167ea6ef6979f7cd0258cf02476b3f7c16926779f4f18ce75428"
+  }
+}

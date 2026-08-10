@@ -3,22 +3,22 @@
 Coffee Chat Roastery is the public, forkable, Bean-free authority for the
 Standard Roastery contract. This repository owns the closed schemas, fixed CC BY
 4.0 Bean-content declaration, canonical validation and index projection, and the
-publication boundary consumed by the Coffee Chat Plugin.
+publication boundary consumed by the Coffee Chat Plugin. It also provides the
+empty public seed that users fork before initializing their own Roastery.
 
-The official repository contains no personal Beans or owner attribution. A
-later, separate seed commit adds one canonical data root:
+The official repository contains no personal Beans or owner attribution. Its
+canonical fork seed is:
 
 ```text
 roastery/
 ├── roastery.json
-├── index.json
-└── beans/
+└── index.json
 ```
 
-An initialized personal fork additionally contains
+After the Plugin's accepted Init flow, a personal fork additionally contains
 `roastery/CONTENT_LICENSE.md`, rendered only from validated owner attribution
 after explicit acceptance. `roastery/roastery.json` is the sole downstream
-contract pin; this contract commit intentionally cannot pin itself.
+contract pin and identifies the earlier immutable contract commit and digest.
 
 ## Commands
 
