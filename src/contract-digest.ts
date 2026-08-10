@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
@@ -11,21 +10,6 @@ import {
   type FileIdentity,
 } from "./verified-read.js";
 
-const ROOT_ENTRIES = [
-  "README.md",
-  "contract.json",
-  "publication.md",
-  "schemas",
-  "security.md",
-  "templates",
-] as const;
-const SCHEMA_ENTRIES = [
-  "bean-frontmatter.schema.json",
-  "content-license.schema.json",
-  "index.schema.json",
-  "roastery.schema.json",
-] as const;
-const TEMPLATE_ENTRIES = ["content-license.md"] as const;
 const CONTRACT_FILES = [
   "README.md",
   "contract.json",
@@ -43,27 +27,6 @@ interface ContractFile {
   path: Buffer;
 }
 
-function assertDirectoryEntries(
-  path: string,
-  expectedNames: readonly string[],
-): void {
-  const actual = readdirSync(path, { encoding: "buffer" }).sort((left, right) =>
-    left.compare(right),
-  );
-  const expected = expectedNames
-    .map((name) => Buffer.from(name, "ascii"))
-    .sort((left, right) => left.compare(right));
-  if (
-    actual.length !== expected.length ||
-    actual.some((name, index) => {
-      const expectedName = expected[index];
-      return expectedName === undefined || !name.equals(expectedName);
-    })
-  ) {
-    throw new Error("unsafe_contract_entry");
-  }
-}
-
 function length(value: number): Buffer {
   const framed = Buffer.alloc(8);
   framed.writeBigUInt64BE(BigInt(value));
@@ -74,30 +37,35 @@ export function computeContractDigest(
   repositoryRoot: string,
 ): `sha256:${string}` {
   try {
-    const contractRoot = resolve(repositoryRoot, "contract");
-    const root = captureDirectory(contractRoot, [], "unsafe_contract_entry");
+    const repository = captureDirectory(
+      resolve(repositoryRoot),
+      [],
+      "unsafe_contract_entry",
+    );
+    const contractRoot = resolve(repository.path, "contract");
+    const root = captureDirectory(
+      contractRoot,
+      [repository],
+      "unsafe_contract_entry",
+    );
     const schemas = captureDirectory(
       resolve(contractRoot, "schemas"),
-      [root],
+      [repository, root],
       "unsafe_contract_entry",
     );
     const templates = captureDirectory(
       resolve(contractRoot, "templates"),
-      [root],
+      [repository, root],
       "unsafe_contract_entry",
     );
-    const directories = [root, schemas, templates];
-    assertDirectoryEntries(contractRoot, ROOT_ENTRIES);
-    assertDirectoryEntries(schemas.path, SCHEMA_ENTRIES);
-    assertDirectoryEntries(templates.path, TEMPLATE_ENTRIES);
-
+    const directories = [repository, root, schemas, templates];
     const fileIdentities: FileIdentity[] = [];
     const files: ContractFile[] = CONTRACT_FILES.map((relativePath) => {
       const ancestors: DirectoryIdentity[] = relativePath.startsWith("schemas/")
-        ? [root, schemas]
+        ? [repository, root, schemas]
         : relativePath.startsWith("templates/")
-          ? [root, templates]
-          : [root];
+          ? [repository, root, templates]
+          : [repository, root];
       return {
         content: readVerifiedFile(
           resolve(contractRoot, relativePath),

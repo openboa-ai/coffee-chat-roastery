@@ -38,7 +38,7 @@ function normalizeAttribution(input) {
     const length = [...normalized].length;
     if (length < 1 || length > 120)
         invalid("attribution length is outside 1-120");
-    if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(normalized) ||
+    if (/[<>\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(normalized) ||
         hasUnpairedSurrogate(normalized) ||
         normalized === ATTRIBUTION_PLACEHOLDER ||
         /^<[^>]+>$/u.test(normalized)) {

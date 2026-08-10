@@ -30,6 +30,23 @@ try {
     ),
   );
   const packedPaths = new Set(packed[0]?.files?.map((entry) => entry.path));
+  const contractPaths = [
+    "contract/README.md",
+    "contract/contract.json",
+    "contract/publication.md",
+    "contract/schemas/bean-frontmatter.schema.json",
+    "contract/schemas/content-license.schema.json",
+    "contract/schemas/index.schema.json",
+    "contract/schemas/roastery.schema.json",
+    "contract/security.md",
+    "contract/templates/content-license.md",
+  ].sort();
+  const packedContractPaths = [...packedPaths]
+    .filter((path) => path.startsWith("contract/"))
+    .sort();
+  if (JSON.stringify(packedContractPaths) !== JSON.stringify(contractPaths)) {
+    throw new Error("packaged_contract_layout_invalid");
+  }
   for (const path of [
     "contract/contract.json",
     "contract/publication.md",

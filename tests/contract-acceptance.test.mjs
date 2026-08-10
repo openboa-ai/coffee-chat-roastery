@@ -82,6 +82,8 @@ test("the immutable bundle renders one fixed, round-trippable Bean license", () 
     " owner",
     "owner ",
     "owner\nname",
+    "Owner <!--",
+    "Owner <script>",
     "owner\ud800",
     "owner\udc00",
     "<OWNER_PROVIDED_ATTRIBUTION>",
@@ -211,16 +213,10 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
     const malformedContract = join(malformedNames, "contract");
     cpSync(contractRoot, malformedContract, { recursive: true });
     writeFileSync(join(malformedContract, "�"), "non-portable name\n");
-    assert.throws(
-      () => computeContractDigest(malformedNames),
-      /unsafe_contract_entry/u,
-    );
+    assert.equal(computeContractDigest(malformedNames), expected);
     rmSync(join(malformedContract, "�"));
     writeFileSync(join(malformedContract, "CON"), "reserved name\n");
-    assert.throws(
-      () => computeContractDigest(malformedNames),
-      /unsafe_contract_entry/u,
-    );
+    assert.equal(computeContractDigest(malformedNames), expected);
   } finally {
     syncBuiltinESMExports();
     rmSync(sandbox, { force: true, recursive: true });
