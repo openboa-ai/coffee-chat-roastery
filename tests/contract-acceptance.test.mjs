@@ -122,6 +122,9 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
   const directoryRace = mkdtempSync(
     join(tmpdir(), "roastery-contract-directory-race-"),
   );
+  const malformedNames = mkdtempSync(
+    join(tmpdir(), "roastery-contract-malformed-name-"),
+  );
   const external = mkdtempSync(join(tmpdir(), "roastery-contract-external-"));
   try {
     cpSync(contractRoot, join(sandbox, "contract"), { recursive: true });
@@ -204,12 +207,21 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
       });
       syncBuiltinESMExports();
     }
+
+    const malformedContract = join(malformedNames, "contract");
+    cpSync(contractRoot, malformedContract, { recursive: true });
+    writeFileSync(join(malformedContract, "�"), "non-portable name\n");
+    assert.throws(
+      () => computeContractDigest(malformedNames),
+      /unsafe_contract_entry/u,
+    );
   } finally {
     syncBuiltinESMExports();
     rmSync(sandbox, { force: true, recursive: true });
     rmSync(linked, { force: true, recursive: true });
     rmSync(raced, { force: true, recursive: true });
     rmSync(directoryRace, { force: true, recursive: true });
+    rmSync(malformedNames, { force: true, recursive: true });
     rmSync(external, { force: true, recursive: true });
   }
 });

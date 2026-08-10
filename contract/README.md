@@ -6,14 +6,15 @@ invalid content-license template, and the publication and untrusted-data
 boundaries. The package API supplies the matching canonical parser, renderer,
 validator, projection, and digest implementation.
 
-The bundle digest covers every regular file below `contract/`. Files are sorted
-by their UTF-8, forward-slash relative-path bytes. Each file contributes an
-unsigned 64-bit big-endian path length, the path bytes, an unsigned 64-bit
-big-endian content length, and the exact content bytes. Symlinks and non-regular
-entries are rejected. Traversal preserves verified directory identities, and
-regular files are read without blocking through no-follow, descriptor-verified
-handles. Every observed file identity is revalidated before the operation
-finishes. The final identity is `sha256:<lowercase hex>`.
+The bundle digest covers every regular file below `contract/`. Entry names are
+read as bytes and restricted to a portable ASCII set. Files are sorted by their
+forward-slash relative-path bytes. Each file contributes an unsigned 64-bit
+big-endian path length, the path bytes, an unsigned 64-bit big-endian content
+length, and the exact content bytes. Symlinks and non-regular entries are
+rejected. Traversal preserves verified directory identities, and regular files
+are read without blocking through no-follow, descriptor-verified handles. Every
+observed file identity is revalidated before the operation finishes. The final
+identity is `sha256:<lowercase hex>`.
 
 The official repository remains Bean-free and contains no installable personal
 attribution. `templates/content-license.md` is documentation-only: its

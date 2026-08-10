@@ -2,13 +2,33 @@ import { createHash } from "node:crypto";
 import { lstatSync, readdirSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { captureDirectory, readVerifiedFile, verifyDirectories, verifyFiles, } from "./verified-read.js";
+function portableName(name) {
+    if (name.length === 0 ||
+        !name.every((byte) => (byte >= 0x30 && byte <= 0x39) ||
+            (byte >= 0x41 && byte <= 0x5a) ||
+            (byte >= 0x61 && byte <= 0x7a) ||
+            byte === 0x2d ||
+            byte === 0x2e ||
+            byte === 0x5f)) {
+        throw new Error("unsafe_contract_entry");
+    }
+    const value = name.toString("ascii");
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(value)) {
+        throw new Error("unsafe_contract_entry");
+    }
+    return value;
+}
 function contractFiles(root, current, ancestors, allDirectories, allFiles) {
     try {
         const directory = captureDirectory(current, ancestors, "unsafe_contract_entry");
         allDirectories.push(directory);
         const directories = [...ancestors, directory];
-        const files = readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
-            const absolute = resolve(current, entry.name);
+        const files = readdirSync(current, {
+            encoding: "buffer",
+            withFileTypes: true,
+        }).flatMap((entry) => {
+            const name = portableName(entry.name);
+            const absolute = resolve(current, name);
             const stat = lstatSync(absolute);
             if (stat.isSymbolicLink())
                 throw new Error("unsafe_contract_entry");
