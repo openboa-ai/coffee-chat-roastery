@@ -1,27 +1,75 @@
 #!/usr/bin/env node
 
+import { resolve } from "node:path";
+
 import {
-  contractDigest,
+  checkIndex,
+  computeContractDigest,
   projectIndex,
   validate,
-  type NotImplementedResult,
+  type ContractPin,
 } from "./index.js";
 
-const commands: Record<string, () => NotImplementedResult> = {
-  "contract-digest": contractDigest,
-  "project-index": projectIndex,
-  validate,
-};
+function value(flag: string): string | undefined {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
 
-const command = process.argv[2];
-const handler = command ? commands[command] : undefined;
+function output(result: unknown, success: boolean): void {
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+  process.exitCode = success ? 0 : 1;
+}
 
-if (!handler) {
-  process.stderr.write(
-    "unknown command; use validate, project-index, or contract-digest\n",
+function root(): string {
+  const candidate = value("--root");
+  if (!candidate) throw new Error("missing_root");
+  return resolve(candidate);
+}
+
+function expectedContract(): ContractPin {
+  const commit = value("--contract-commit");
+  const digest = value("--contract-digest");
+  if (!commit || !digest) throw new Error("contract_expectation_required");
+  return {
+    repository: "https://github.com/openboa-ai/coffee-chat-roastery",
+    commit,
+    digest: digest as `sha256:${string}`,
+  };
+}
+
+try {
+  const command = process.argv[2];
+  if (command === "contract-digest") {
+    output({ digest: computeContractDigest(root()), status: "valid" }, true);
+  } else if (command === "validate") {
+    const repositoryRoot = root();
+    const result = validate({
+      root: repositoryRoot,
+      expectedContract: expectedContract(),
+    });
+    output(result, result.status === "valid");
+  } else if (command === "project-index") {
+    const repositoryRoot = root();
+    const check = process.argv.includes("--check");
+    if (check) {
+      const result = checkIndex({ root: repositoryRoot });
+      output(result, result.status === "valid");
+    } else {
+      const projected = projectIndex({ root: repositoryRoot });
+      output(projected, true);
+    }
+  } else {
+    process.stderr.write(
+      "unknown command; use validate, project-index, or contract-digest\n",
+    );
+    process.exitCode = 1;
+  }
+} catch (error) {
+  output(
+    {
+      code: error instanceof Error ? error.message : "command_failed",
+      status: "invalid",
+    },
+    false,
   );
-  process.exitCode = 1;
-} else {
-  process.stdout.write(`${JSON.stringify(handler())}\n`);
-  process.exitCode = 1;
 }

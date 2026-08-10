@@ -1,21 +1,14 @@
 # Contribution flow
 
-## Current migration shell
+Every substantive change uses a branch and pull request. Required deterministic
+quality, dependency review, and CodeQL checks must pass for the latest head;
+GitHub then squash-merges without a human approval requirement.
 
-Changes preserve a Bean-free official repository, the MIT software boundary, the
-future fixed CC BY 4.0 owner-content boundary, and the closed package surface.
-The three public commands are intentionally unimplemented and make no writes.
+Contract changes and seed changes are deliberately separate. First publish and
+freeze the contract commit and reproducible bundle digest. Only a later seed
+pull request may add `roastery/roastery.json` that pins that exact tuple.
 
-## Deferred implementation
-
-Do not add a schema, seed, validator, projection, digest, publication check,
-compatibility layer, migration receipt, refresh process, or enforcement claim
-without a new approved implementation scope. A future `project-index` write must
-be designed and tested as an explicit write operation.
-
-## Pull requests
-
-Use GitHub-native squash merge only. Eligible pull-request authors are `OWNER`
-and `MEMBER`; the repository requires zero approvals and no custom auto-merge
-controller. Required checks are the lean deterministic quality lane, dependency
-review, and CodeQL.
+Contract, schema, parser, renderer, validator, workflow, security, and license
+paths are protected by focused automated oracles. Ordinary future Bean
+publication may not alter those paths. The standard flow has no compatibility
+layer, alternate license mode, contract refresh, or direct default-branch write.

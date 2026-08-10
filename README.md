@@ -1,40 +1,42 @@
 # Coffee Chat Roastery
 
-Coffee Chat Roastery is the public, forkable, Bean-free authority for the future
-canonical Roastery contract. This migration shell establishes the repository
-boundary and package shape; it does not implement a validator, index projection,
-publication enforcement, seed, or compatibility layer.
+Coffee Chat Roastery is the public, forkable, Bean-free authority for the
+Standard Roastery contract. This repository owns the closed schemas, fixed CC BY
+4.0 Bean-content declaration, canonical validation and index projection, and the
+publication boundary consumed by the Coffee Chat Plugin.
 
-The official repository is intentionally Bean-free and contains no personal
-attribution. A personal fork has one canonical data root:
+The official repository contains no personal Beans or owner attribution. A
+later, separate seed commit adds one canonical data root:
 
 ```text
 roastery/
 ├── roastery.json
 ├── index.json
-├── CONTENT_LICENSE.md
 └── beans/
 ```
 
-When the seed is implemented, `roastery/roastery.json` will be the sole
-downstream contract pin. It is not present in this official repository today.
+An initialized personal fork additionally contains
+`roastery/CONTENT_LICENSE.md`, rendered only from validated owner attribution
+after explicit acceptance. `roastery/roastery.json` is the sole downstream
+contract pin; this contract commit intentionally cannot pin itself.
 
 ## Commands
 
 ```sh
-roastery validate
-roastery project-index
-roastery contract-digest
+roastery validate --root <repository> --contract-commit <sha> --contract-digest <sha256> --format json
+roastery project-index --root <repository> [--check]
+roastery contract-digest --root <repository> --format json
 ```
 
-All three commands are discoverable but return `{"status":"not_implemented"}`
-with a non-zero exit code. They make no writes. The future `project-index`
-capability is the only contemplated write surface, and needs a separately
-approved implementation.
+All commands are read-only. `validate` requires the trusted contract commit and
+digest instead of accepting a repository's self-declared tuple. `project-index`
+emits canonical bytes for a trusted caller to place in a reviewed change;
+`--check` compares them with the current index. Every command returns structured
+JSON and fails closed on invalid or unsafe state.
 
-The installed package exports exactly `validate`, `projectIndex`, and
-`contractDigest`; each currently returns the same explicit deferred status.
-`npm run package:check` packs, installs, and runs this closed surface offline.
+The package API exports the same canonical content-license renderer/parser,
+contract digest, validator, and index projector used by the CLI. The bundle
+digest algorithm is documented in [contract/README.md](contract/README.md).
 
 ## Rights boundary
 
@@ -47,5 +49,6 @@ with owner-provided attribution. Origin URLs and the resources they identify
 remain outside that Bean-content license. The official Bean-free repository does
 not install `roastery/CONTENT_LICENSE.md`.
 
-See [SECURITY.md](SECURITY.md) and [the quality map](docs/quality-map.md) for
-the current shell boundary and deferred implementation work.
+See [SECURITY.md](SECURITY.md), the
+[Publication Contract](contract/publication.md), and the
+[quality map](docs/quality-map.md) for the enforced boundaries.
