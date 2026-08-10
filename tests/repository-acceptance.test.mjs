@@ -217,6 +217,17 @@ test("one validator accepts the Bean-free seed and an initialized owner fork", (
   }
 });
 
+test("validation rejects an unknown explicit mode before reading a repository", () => {
+  assert.deepEqual(
+    validate({
+      root: "/path/that/must/not/be-read",
+      mode: JSON.parse('"bogus"'),
+      expectedContract: contract,
+    }),
+    { code: "invalid_mode", status: "invalid" },
+  );
+});
+
 test("projection is deterministic and validation rejects unsafe or stale Bean state", () => {
   const root = fixture({
     initialized: true,

@@ -78,6 +78,13 @@ function fail(code: string): never {
   throw new ValidationError(code);
 }
 
+function validationMode(value: unknown): ValidationMode | undefined {
+  if (value === undefined || value === "seed" || value === "initialized") {
+    return value;
+  }
+  fail("invalid_mode");
+}
+
 function decodeUtf8(content: Buffer, code: string): string {
   try {
     return UTF8_DECODER.decode(content);
@@ -399,6 +406,7 @@ export function validate({
   expectedContract: ContractPin;
 }): ValidationResult {
   try {
+    const requestedMode = validationMode(mode);
     const context = createContext(root);
     const manifestPath = resolve(context.roasteryRoot, "roastery.json");
     safeChild(context.root, manifestPath);
@@ -446,7 +454,8 @@ export function validate({
     }
     if (licenseEntry !== undefined) safeChild(context.root, licensePath);
     const effectiveMode =
-      mode ?? (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
+      requestedMode ??
+      (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
     if (effectiveMode === "seed") {
       if (
         repository !== OFFICIAL_REPOSITORY ||

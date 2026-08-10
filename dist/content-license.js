@@ -46,13 +46,25 @@ function normalizeAttribution(input) {
     }
     return normalized;
 }
+function markdownText(value) {
+    return [...value]
+        .map((character) => {
+        const code = character.charCodeAt(0);
+        const isAsciiPunctuation = (code >= 0x21 && code <= 0x2f) ||
+            (code >= 0x3a && code <= 0x40) ||
+            (code >= 0x5b && code <= 0x60) ||
+            (code >= 0x7b && code <= 0x7e);
+        return isAsciiPunctuation ? `\\${character}` : character;
+    })
+        .join("");
+}
 function body(attribution) {
     return [
         "# Bean content license",
         "",
         `Scope: \`${CONTENT_LICENSE_SCOPE}\``,
         `License: \`${CONTENT_LICENSE_ID}\``,
-        `Attribution: ${attribution}`,
+        `Attribution: ${markdownText(attribution)}`,
         `License URL: ${CONTENT_LICENSE_URL}`,
         "Origin exclusion: Origin URLs and the resources they identify are outside this Bean-content license.",
         "Rights authority: The publisher may license only rights they own or control.",

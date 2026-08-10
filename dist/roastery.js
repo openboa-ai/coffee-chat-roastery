@@ -36,6 +36,12 @@ class ValidationError extends Error {
 function fail(code) {
     throw new ValidationError(code);
 }
+function validationMode(value) {
+    if (value === undefined || value === "seed" || value === "initialized") {
+        return value;
+    }
+    fail("invalid_mode");
+}
 function decodeUtf8(content, code) {
     try {
         return UTF8_DECODER.decode(content);
@@ -291,6 +297,7 @@ export function checkIndex({ root }) {
 }
 export function validate({ root, mode, expectedContract, }) {
     try {
+        const requestedMode = validationMode(mode);
         const context = createContext(root);
         const manifestPath = resolve(context.roasteryRoot, "roastery.json");
         safeChild(context.root, manifestPath);
@@ -319,7 +326,8 @@ export function validate({ root, mode, expectedContract, }) {
         }
         if (licenseEntry !== undefined)
             safeChild(context.root, licensePath);
-        const effectiveMode = mode ?? (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
+        const effectiveMode = requestedMode ??
+            (repository === OFFICIAL_REPOSITORY ? "seed" : "initialized");
         if (effectiveMode === "seed") {
             if (repository !== OFFICIAL_REPOSITORY ||
                 beans.length !== 0 ||

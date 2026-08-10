@@ -77,6 +77,28 @@ test("the immutable bundle renders one fixed, round-trippable Bean license", () 
   const emoji = renderContentLicense("Coffee Owner ☕");
   assert.deepEqual(parseContentLicense(emoji.content), emoji);
 
+  for (const { attribution, markdownText } of [
+    {
+      attribution: "[Owner](https://attacker.example)",
+      markdownText: "\\[Owner\\]\\(https\\:\\/\\/attacker\\.example\\)",
+    },
+    {
+      attribution: "![Owner](https://attacker.example/image)",
+      markdownText:
+        "\\!\\[Owner\\]\\(https\\:\\/\\/attacker\\.example\\/image\\)",
+    },
+    { attribution: "**Owner**", markdownText: "\\*\\*Owner\\*\\*" },
+    { attribution: "`Owner`", markdownText: "\\`Owner\\`" },
+  ]) {
+    const plainText = renderContentLicense(attribution);
+    const attributionLine =
+      plainText.content
+        .split("\n")
+        .find((line) => line.startsWith("Attribution: ")) ?? "";
+    assert.equal(attributionLine, `Attribution: ${markdownText}`);
+    assert.deepEqual(parseContentLicense(plainText.content), plainText);
+  }
+
   for (const attribution of [
     "",
     " owner",
