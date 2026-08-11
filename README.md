@@ -26,6 +26,7 @@ contract pin and identifies the earlier immutable contract commit and digest.
 roastery validate --root <repository> --contract-commit <sha> --contract-digest <sha256> --format json
 roastery project-index --root <repository> [--check]
 roastery contract-digest --root <repository> --format json
+npm run repository:check
 ```
 
 All commands are read-only. `validate` requires the trusted contract commit and
@@ -33,6 +34,13 @@ digest instead of accepting a repository's self-declared tuple. `project-index`
 emits canonical bytes for a trusted caller to place in a reviewed change;
 `--check` compares them with the current index. Every command returns structured
 JSON and fails closed on invalid or unsafe state.
+
+`repository:check` binds that validation to the executing GitHub repository.
+GitHub Actions supplies `GITHUB_REPOSITORY`; isolated callers may pass
+`--expected-repository` to the underlying script (or append it after `--` when
+using the npm command). The official repository must remain the Bean-free seed,
+while an owner fork must carry its own `owner/coffee-chat` identity and
+canonical content declaration.
 
 The package API exports the same canonical content-license renderer/parser,
 contract digest, validator, and index projector used by the CLI. The bundle

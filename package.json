@@ -28,6 +28,7 @@
     "ci:policy": "node .github/ci-policy.mjs",
     "format:check": "prettier --check .",
     "package:check": "node scripts/check-package.mjs",
+    "repository:check": "node scripts/check-repository-state.mjs --root .",
     "smoke": "node --test tests/*.test.mjs",
     "test": "npm run smoke",
     "typecheck": "tsc --noEmit",
