@@ -46,6 +46,7 @@ for (const command of [
   "npm run format:check",
   "npm run typecheck",
   "npm run build",
+  "npm run repository:check",
   "npm run smoke",
   "npm run package:check",
   "npm run ci:policy",

@@ -47,6 +47,7 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run repository:check
       - run: npm run smoke
       - run: npm run package:check
       - run: npm run ci:policy

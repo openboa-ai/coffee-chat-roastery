@@ -13,6 +13,7 @@ tests them.
 - [ ] `npm run format:check`
 - [ ] `npm run typecheck`
 - [ ] `npm run build`
+- [ ] `npm run repository:check`
 - [ ] `npm run smoke`
 - [ ] `npm run ci:policy`
 - [ ] `npm run package:check`
