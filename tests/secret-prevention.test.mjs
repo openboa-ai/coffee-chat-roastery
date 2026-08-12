@@ -15,6 +15,7 @@ const root = resolve(import.meta.dirname, "..");
 const hook = join(root, ".githooks", "pre-commit");
 const workflow = join(root, ".github", "workflows", "quality.yml");
 const installer = join(root, ".github", "scripts", "install-gitleaks.sh");
+const localScan = join(root, "scripts", "security-scan.sh");
 
 function git(args, cwd) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -49,6 +50,23 @@ test("local credential files are ignored without hiding the example", () => {
     0,
     "public certificates must remain publishable",
   );
+  const publicKey = git(
+    ["check-ignore", "--no-index", "--quiet", "public.key"],
+    root,
+  );
+  assert.notEqual(publicKey.status, 0, "public keys must remain publishable");
+});
+
+test("trusted boundary scans merge groups and raw introduced blobs", () => {
+  const source = readFileSync(
+    join(root, ".github", "workflows", "secret-boundary.yml"),
+    "utf8",
+  );
+  assert.match(source, /merge_group:/u);
+  assert.match(source, /merge_group\.base_sha/u);
+  assert.match(source, /merge_group\.head_sha/u);
+  assert.match(source, /git -C candidate rev-list --objects/u);
+  assert.match(source, /git -C candidate cat-file blob/u);
 });
 
 test("the repository hook rejects a generated staged secret and redacts output", () => {
@@ -131,4 +149,17 @@ test("required CI installs an immutable scanner and scans complete history", () 
     /e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf/u,
   );
   assert.match(installSource, /sha256sum --check/u);
+});
+
+test("local publication scan uses the pinned controls and both scan modes", () => {
+  const source = readFileSync(localScan, "utf8");
+  assert.match(source, /v8\.30\.1\/config\/gitleaks\.toml/u);
+  assert.match(
+    source,
+    /e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf/u,
+  );
+  assert.match(source, /gitleaks-ignore-path \/dev\/null/u);
+  assert.match(source, /--ignore-gitleaks-allow/u);
+  assert.match(source, /"\$scanner" git/u);
+  assert.match(source, /"\$scanner" dir/u);
 });
