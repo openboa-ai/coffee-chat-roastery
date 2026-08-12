@@ -42,7 +42,12 @@ jobs:
       - name: Install immutable Gitleaks
         run: .github/scripts/install-gitleaks.sh
       - name: Scan complete Git history
-        run: gitleaks git --redact --no-banner .
+        run: |
+          test ! -e .gitleaks.toml
+          test ! -e .gitleaksignore
+          gitleaks git --config "$GITLEAKS_TRUSTED_CONFIG" \
+            --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow \
+            --redact --no-banner .
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
