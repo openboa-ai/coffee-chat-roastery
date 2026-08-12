@@ -96,7 +96,7 @@ test(
   },
 );
 
-test("policy retains the three lean workflows and native squash authority", () => {
+test("policy retains lean workflows and native squash authority", () => {
   const policy = JSON.parse(
     readFileSync(join(root, ".github/merge-policy.json"), "utf8"),
   );
@@ -104,6 +104,9 @@ test("policy retains the three lean workflows and native squash authority", () =
   assert.equal(policy.merge_method, "squash");
   assert.equal(policy.auto_merge, "github-native");
   assert.equal(policy.required_approvals, 0);
+  assert.ok(
+    policy.required_checks.some(({ context }) => context === "Secret boundary"),
+  );
 
   const workflows = ["quality.yml", "policy.yml", "codeql.yml"];
   for (const workflow of workflows) {
@@ -114,4 +117,14 @@ test("policy retains the three lean workflows and native squash authority", () =
     assert.match(source, /pull_request:/u);
     assert.match(source, /merge_group:/u);
   }
+  const boundary = readFileSync(
+    join(root, ".github/workflows/secret-boundary.yml"),
+    "utf8",
+  );
+  assert.match(boundary, /pull_request_target:/u);
+  assert.doesNotMatch(boundary, /merge_group:/u);
+  assert.match(boundary, /path: trusted/u);
+  assert.match(boundary, /path: candidate/u);
+  assert.match(boundary, /gitleaks dir/u);
+  assert.doesNotMatch(boundary, /npm |node |secrets\./u);
 });

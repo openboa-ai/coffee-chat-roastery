@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workflowRoot = resolve(root, ".github/workflows");
 const failures = [];
-const workflowNames = ["codeql.yml", "policy.yml", "quality.yml"];
+const workflowNames = [
+  "codeql.yml",
+  "policy.yml",
+  "quality.yml",
+  "secret-boundary.yml",
+];
 const pinnedActions = [
   "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
@@ -22,11 +27,35 @@ const discovered = readdirSync(workflowRoot)
   .filter((name) => name.endsWith(".yml"))
   .sort();
 if (JSON.stringify(discovered) !== JSON.stringify(workflowNames)) {
-  failures.push("workflow set must be exactly quality, policy, and codeql");
+  failures.push("workflow set must include the trusted secret boundary");
 }
 
 for (const name of workflowNames) {
   const source = readFileSync(resolve(workflowRoot, name), "utf8");
+  if (name === "secret-boundary.yml") {
+    for (const required of [
+      "pull_request_target:",
+      "permissions:",
+      "contents: read",
+      "path: trusted",
+      "path: candidate",
+      "git -C candidate fetch --no-tags --depth=1",
+      "set -o pipefail",
+      "gitleaks git",
+      "gitleaks dir",
+    ]) {
+      requireText(source, required, name);
+    }
+    if (
+      source.includes("merge_group:") ||
+      source.includes("npm ") ||
+      source.includes("node ") ||
+      source.includes("secrets.")
+    ) {
+      failures.push(`${name}: candidate execution or secret context`);
+    }
+    continue;
+  }
   requireText(source, "pull_request:", name);
   requireText(source, "merge_group:", name);
   requireText(source, "permissions: {}", name);
@@ -67,6 +96,11 @@ if (
     JSON.stringify(["OWNER", "MEMBER"])
 ) {
   failures.push("merge policy is not zero-approval GitHub-native squash");
+}
+if (
+  !policy.required_checks.some(({ context }) => context === "Secret boundary")
+) {
+  failures.push("merge policy must require the trusted secret boundary");
 }
 
 if (failures.length > 0) {
