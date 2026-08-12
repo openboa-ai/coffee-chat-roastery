@@ -46,6 +46,10 @@ The package API exports the same canonical content-license renderer/parser,
 contract digest, validator, and index projector used by the CLI. The bundle
 digest algorithm is documented in [contract/README.md](contract/README.md).
 
+For local publication work, install Gitleaks and enable the repository-managed
+hook with `npm run hooks:install`. Run `npm run security:scan` for a complete
+history scan. Required CI performs the same history scan independently.
+
 ## Rights boundary
 
 Official code, schemas, contracts, policy, tests, and tooling use the root

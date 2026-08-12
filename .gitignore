@@ -5,3 +5,10 @@ coverage/
 .env
 .env.*
 !.env.example
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
