@@ -17,6 +17,10 @@
     {
       "context": "Roastery dependency review",
       "integration_id": 15368
+    },
+    {
+      "context": "Secret boundary",
+      "integration_id": 15368
     }
   ],
   "protected_paths": [

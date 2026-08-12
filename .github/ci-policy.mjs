@@ -94,6 +94,11 @@ if (
 ) {
   failures.push("merge policy is not zero-approval GitHub-native squash");
 }
+if (
+  !policy.required_checks.some(({ context }) => context === "Secret boundary")
+) {
+  failures.push("merge policy must require the trusted secret boundary");
+}
 
 if (failures.length > 0) {
   process.stderr.write(`${failures.join("\n")}\n`);
