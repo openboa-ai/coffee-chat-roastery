@@ -2,7 +2,7 @@
   "repository_role": "roastery",
   "merge_method": "squash",
   "auto_merge": "github-native",
-  "required_events": ["merge_group", "pull_request"],
+  "required_events": ["pull_request"],
   "eligible_author_associations": ["OWNER", "MEMBER"],
   "review_policy": {
     "required_approvals": 0,

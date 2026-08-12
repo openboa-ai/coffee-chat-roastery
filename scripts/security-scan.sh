@@ -23,3 +23,15 @@ test "$actual" = "$expected"
   --ignore-gitleaks-allow --redact --no-banner .
 "$scanner" dir --config "$config_path" --gitleaks-ignore-path /dev/null \
   --ignore-gitleaks-allow --redact --no-banner .
+
+blob_dir="$(mktemp -d)"
+git rev-list --objects --all |
+  cut -d' ' -f1 |
+  git cat-file --batch-check='%(objectname) %(objecttype)' |
+  awk '$2 == "blob" { print $1 }' > "$config_dir/blob-ids"
+while read -r object_id; do
+  git cat-file blob "$object_id" > "$blob_dir/$object_id"
+done < "$config_dir/blob-ids"
+"$scanner" dir --config "$config_path" --gitleaks-ignore-path /dev/null \
+  --ignore-gitleaks-allow --redact --no-banner "$blob_dir"
+rm -rf "$blob_dir"

@@ -39,12 +39,15 @@ for (const name of workflowNames) {
       "contents: read",
       "path: trusted",
       "path: candidate",
+      "git -C candidate fetch --no-tags --depth=1",
+      "set -o pipefail",
       "gitleaks git",
       "gitleaks dir",
     ]) {
       requireText(source, required, name);
     }
     if (
+      source.includes("merge_group:") ||
       source.includes("npm ") ||
       source.includes("node ") ||
       source.includes("secrets.")

@@ -122,6 +122,7 @@ test("policy retains lean workflows and native squash authority", () => {
     "utf8",
   );
   assert.match(boundary, /pull_request_target:/u);
+  assert.doesNotMatch(boundary, /merge_group:/u);
   assert.match(boundary, /path: trusted/u);
   assert.match(boundary, /path: candidate/u);
   assert.match(boundary, /gitleaks dir/u);
