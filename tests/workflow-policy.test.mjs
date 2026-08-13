@@ -141,6 +141,19 @@ test("rejects an extra pull_request_target trigger", async () => {
   );
 });
 
+test("rejects a weakened candidate author gate", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "OWNER|MEMBER",
+        "CONTRIBUTOR",
+      ),
+    /OWNER\|MEMBER author gate/u,
+  );
+});
+
 test("rejects a missing bounded job timeout", async () => {
   await expectRejected(
     (fixture) =>

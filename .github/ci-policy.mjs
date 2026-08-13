@@ -32,6 +32,14 @@ const requiredCommands = [
   "npm run package:check",
   "npm run ci:policy",
 ];
+const authorEligibilityGate = `case "$EVENT_NAME" in
+  merge_group) exit 0 ;;
+  pull_request)
+    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+    ;;
+  *) exit 1 ;;
+esac
+`;
 
 function fail(message) {
   failures.push(message);
@@ -238,12 +246,7 @@ function validateQuality(workflow) {
     !isRecord(eligibility) ||
     eligibility.name !== "Roastery author eligibility" ||
     !equal(eligibility.permissions, { contents: "read" }) ||
-    !getSteps(eligibility).some(
-      (step) =>
-        typeof step?.run === "string" &&
-        step.run.includes('case "$EVENT_NAME" in') &&
-        step.run.includes("OWNER|MEMBER"),
-    )
+    !stepRuns(getSteps(eligibility), authorEligibilityGate)
   ) {
     fail("quality.yml: OWNER|MEMBER author gate");
   }
