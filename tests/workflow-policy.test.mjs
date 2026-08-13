@@ -100,6 +100,21 @@ test("runs isolated structural policy before candidate dependencies and delegate
   assert.match(checkerSource, /policy-parser\/package\.json/u);
 });
 
+test("standard local policy and smoke commands install the isolated parser", async () => {
+  const packageJson = JSON.parse(
+    await readFile(join(repositoryRoot, "package.json"), "utf8"),
+  );
+  assert.equal(
+    packageJson.scripts["policy:install"],
+    "npm ci --ignore-scripts --prefix .github/policy-parser",
+  );
+  assert.match(packageJson.scripts.smoke, /^npm run policy:install && /u);
+  assert.match(
+    packageJson.scripts["ci:policy"],
+    /^npm run policy:install && /u,
+  );
+});
+
 test("rejects a dependency lock redirected away from the npm registry", async () => {
   await expectRejected(
     (fixture) =>
@@ -607,7 +622,7 @@ test("rejects weakening the package policy command", async () => {
       replace(
         fixture,
         "package.json",
-        "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+        "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
         "node .github/ci-policy.mjs",
       ),
     /package command/u,

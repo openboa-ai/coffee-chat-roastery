@@ -798,21 +798,22 @@ const packageJson = JSON.parse(
 const expectedPackageScripts = {
   build: "node scripts/build.mjs",
   "ci:policy":
-    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+    "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dist:check": "npm run build && git diff --exit-code -- dist",
   "format:check": "prettier --check .",
   "hooks:install": "git config core.hooksPath .githooks",
   "package:check": "node scripts/check-package.mjs",
   "security:scan": "scripts/security-scan.sh",
   "repository:check": "node scripts/check-repository-state.mjs --root .",
-  smoke: "node --test tests/*.test.mjs",
+  "policy:install": "npm ci --ignore-scripts --prefix .github/policy-parser",
+  smoke: "npm run policy:install && node --test tests/*.test.mjs",
   test: "npm run smoke",
   typecheck: "tsc --noEmit",
   prepack: "npm run build",
 };
 if (
   packageJson.scripts?.["ci:policy"] !==
-  "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
+  "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
 }
