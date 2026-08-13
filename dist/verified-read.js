@@ -106,7 +106,7 @@ export function captureDirectory(path, ancestors, code) {
     }
     throw new UnsafeReadError(code);
 }
-export function readVerifiedFile(path, ancestors, files, code) {
+export function readVerifiedFile(path, ancestors, files, code, maxBytes, resourceCode = "resource_limit_exceeded") {
     let descriptor;
     try {
         verifyDirectories(ancestors, code);
@@ -121,6 +121,11 @@ export function readVerifiedFile(path, ancestors, files, code) {
             current.isSymbolicLink() ||
             !sameEntry(opened, current)) {
             fail(code);
+        }
+        if (!Number.isSafeInteger(maxBytes) ||
+            maxBytes < 0 ||
+            opened.size > maxBytes) {
+            fail(resourceCode);
         }
         const identity = {
             ctimeMs: opened.ctimeMs,

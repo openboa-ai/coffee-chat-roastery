@@ -3,6 +3,7 @@ export const CONTENT_LICENSE_SCOPE = "roastery/beans/**";
 export const CONTENT_LICENSE_ID = "CC-BY-4.0";
 export const CONTENT_LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/";
 export const ATTRIBUTION_PLACEHOLDER = "<OWNER_PROVIDED_ATTRIBUTION>";
+export const MAX_CONTENT_LICENSE_CHARACTERS = 8 * 1024;
 export class ContentLicenseError extends Error {
     code;
     constructor(code, message) {
@@ -98,6 +99,9 @@ export function renderContentLicense(attributionInput) {
 export function parseContentLicense(source) {
     if (typeof source !== "string")
         invalid("content license must be text");
+    if (source.length > MAX_CONTENT_LICENSE_CHARACTERS) {
+        invalid("content license exceeds the resource limit");
+    }
     const lines = source.split("\n");
     if (lines[0] !== "---" ||
         lines[1] !== `scope: ${CONTENT_LICENSE_SCOPE}` ||

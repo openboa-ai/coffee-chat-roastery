@@ -21,11 +21,8 @@ const CONTRACT_FILES = [
   "security.md",
   "templates/content-license.md",
 ] as const;
-
-interface ContractFile {
-  content: Buffer;
-  path: Buffer;
-}
+const MAX_CONTRACT_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_CONTRACT_BUNDLE_BYTES = 8 * 1024 * 1024;
 
 function length(value: number): Buffer {
   const framed = Buffer.alloc(8);
@@ -60,32 +57,37 @@ export function computeContractDigest(
     );
     const directories = [repository, root, schemas, templates];
     const fileIdentities: FileIdentity[] = [];
-    const files: ContractFile[] = CONTRACT_FILES.map((relativePath) => {
+    const hash = createHash("sha256");
+    let totalBytes = 0;
+    for (const relativePath of [...CONTRACT_FILES].sort((left, right) =>
+      Buffer.from(left, "ascii").compare(Buffer.from(right, "ascii")),
+    )) {
       const ancestors: DirectoryIdentity[] = relativePath.startsWith("schemas/")
         ? [repository, root, schemas]
         : relativePath.startsWith("templates/")
           ? [repository, root, templates]
           : [repository, root];
-      return {
-        content: readVerifiedFile(
-          resolve(contractRoot, relativePath),
-          ancestors,
-          fileIdentities,
-          "unsafe_contract_entry",
-        ),
-        path: Buffer.from(relativePath, "ascii"),
-      };
-    }).sort((left, right) => left.path.compare(right.path));
+      const path = Buffer.from(relativePath, "ascii");
+      const content = readVerifiedFile(
+        resolve(contractRoot, relativePath),
+        ancestors,
+        fileIdentities,
+        "unsafe_contract_entry",
+        MAX_CONTRACT_FILE_BYTES,
+        "unsafe_contract_entry",
+      );
+      totalBytes += content.length;
+      if (totalBytes > MAX_CONTRACT_BUNDLE_BYTES) {
+        throw new Error("unsafe_contract_entry");
+      }
+      hash.update(length(path.length));
+      hash.update(path);
+      hash.update(length(content.length));
+      hash.update(content);
+    }
 
     verifyDirectories(directories, "unsafe_contract_entry");
     verifyFiles(fileIdentities, "unsafe_contract_entry");
-    const hash = createHash("sha256");
-    for (const file of files) {
-      hash.update(length(file.path.length));
-      hash.update(file.path);
-      hash.update(length(file.content.length));
-      hash.update(file.content);
-    }
     return `sha256:${hash.digest("hex")}`;
   } catch {
     throw new Error("unsafe_contract_entry");

@@ -28,6 +28,34 @@ const contract = {
   commit: "a".repeat(40),
   digest: `sha256:${"b".repeat(64)}`,
 };
+const MAX_ROASTERY_JSON_BYTES = 64 * 1024;
+const MAX_INDEX_BYTES = 256 * 1024;
+const MAX_CONTENT_LICENSE_BYTES = 8 * 1024;
+const MAX_BEAN_BYTES = 256 * 1024;
+const MAX_BEANS = 1024;
+const MAX_TOTAL_BEAN_BYTES = 8 * 1024 * 1024;
+const MAX_ORIGINS_PER_BEAN = 64;
+
+function beanId(index) {
+  return `00000000-0000-7000-8000-${index.toString(16).padStart(12, "0")}`;
+}
+
+/**
+ * @param {number} index
+ * @param {{ origins?: number; size?: number }} [options]
+ */
+function beanBytes(index, { origins = 1, size } = {}) {
+  const id = beanId(index);
+  const originLines = Array.from(
+    { length: origins },
+    (_, origin) => `  - https://source${origin}.example.com/${index}`,
+  ).join("\n");
+  const prefix = `---\nid: ${id}\norigins:\n${originLines}\n---\n\n`;
+  if (size === undefined) return `${prefix}Bean ${index}.\n`;
+  const bodyBytes = size - Buffer.byteLength(prefix) - 1;
+  assert.ok(bodyBytes >= 1, "test Bean size must leave a non-empty body");
+  return `${prefix}${"x".repeat(bodyBytes)}\n`;
+}
 
 function fixture({
   repository = "https://github.com/openboa-ai/coffee-chat-roastery",
@@ -226,6 +254,135 @@ test("validation rejects an unknown explicit mode before reading a repository", 
     }),
     { code: "invalid_mode", status: "invalid" },
   );
+});
+
+test("validation bounds repository metadata and content-license bytes", () => {
+  const manifestRoot = fixture();
+  const indexRoot = fixture();
+  const licenseRoot = fixture({
+    initialized: true,
+    repository: "https://github.com/example/coffee-chat",
+  });
+  try {
+    writeFileSync(
+      join(manifestRoot, "roastery", "roastery.json"),
+      Buffer.alloc(MAX_ROASTERY_JSON_BYTES + 1, 0x61),
+    );
+    assert.deepEqual(
+      validate({
+        root: manifestRoot,
+        mode: "seed",
+        expectedContract: contract,
+      }),
+      { code: "resource_limit_exceeded", status: "invalid" },
+    );
+
+    writeFileSync(
+      join(indexRoot, "roastery", "index.json"),
+      Buffer.alloc(MAX_INDEX_BYTES + 1, 0x62),
+    );
+    assert.deepEqual(checkIndex({ root: indexRoot }), {
+      code: "resource_limit_exceeded",
+      status: "invalid",
+    });
+
+    writeFileSync(
+      join(licenseRoot, "roastery", "CONTENT_LICENSE.md"),
+      Buffer.alloc(MAX_CONTENT_LICENSE_BYTES + 1, 0x63),
+    );
+    assert.deepEqual(
+      validate({
+        root: licenseRoot,
+        mode: "initialized",
+        expectedContract: contract,
+      }),
+      { code: "resource_limit_exceeded", status: "invalid" },
+    );
+  } finally {
+    rmSync(manifestRoot, { force: true, recursive: true });
+    rmSync(indexRoot, { force: true, recursive: true });
+    rmSync(licenseRoot, { force: true, recursive: true });
+  }
+});
+
+test("Bean projection enforces per-file, origin, count, and aggregate budgets", () => {
+  const perFileRoot = fixture();
+  const originRoot = fixture();
+  const countRoot = fixture();
+  const aggregateRoot = fixture();
+  for (const root of [perFileRoot, originRoot, countRoot, aggregateRoot]) {
+    mkdirSync(join(root, "roastery", "beans"));
+  }
+  try {
+    const perFilePath = join(
+      perFileRoot,
+      "roastery",
+      "beans",
+      `${beanId(1)}.md`,
+    );
+    writeFileSync(perFilePath, beanBytes(1, { size: MAX_BEAN_BYTES }));
+    assert.equal(projectIndex({ root: perFileRoot }).beans.length, 1);
+    writeFileSync(perFilePath, Buffer.alloc(MAX_BEAN_BYTES + 1, 0x64));
+    assert.throws(
+      () => projectIndex({ root: perFileRoot }),
+      /resource_limit_exceeded/u,
+    );
+
+    const originPath = join(originRoot, "roastery", "beans", `${beanId(2)}.md`);
+    writeFileSync(originPath, beanBytes(2, { origins: MAX_ORIGINS_PER_BEAN }));
+    assert.equal(projectIndex({ root: originRoot }).beans.length, 1);
+    writeFileSync(
+      originPath,
+      beanBytes(2, { origins: MAX_ORIGINS_PER_BEAN + 1 }),
+    );
+    assert.throws(
+      () => projectIndex({ root: originRoot }),
+      /resource_limit_exceeded/u,
+    );
+
+    const countDirectory = join(countRoot, "roastery", "beans");
+    for (let index = 1; index <= MAX_BEANS; index += 1) {
+      writeFileSync(
+        join(countDirectory, `${beanId(index)}.md`),
+        beanBytes(index),
+      );
+    }
+    assert.equal(projectIndex({ root: countRoot }).beans.length, MAX_BEANS);
+    writeFileSync(
+      join(countDirectory, `${beanId(MAX_BEANS + 1)}.md`),
+      beanBytes(MAX_BEANS + 1),
+    );
+    assert.throws(
+      () => projectIndex({ root: countRoot }),
+      /resource_limit_exceeded/u,
+    );
+
+    const aggregateDirectory = join(aggregateRoot, "roastery", "beans");
+    const exactAggregateCount = MAX_TOTAL_BEAN_BYTES / MAX_BEAN_BYTES;
+    for (let index = 1; index <= exactAggregateCount; index += 1) {
+      writeFileSync(
+        join(aggregateDirectory, `${beanId(index)}.md`),
+        beanBytes(index, { size: MAX_BEAN_BYTES }),
+      );
+    }
+    assert.equal(
+      projectIndex({ root: aggregateRoot }).beans.length,
+      exactAggregateCount,
+    );
+    writeFileSync(
+      join(aggregateDirectory, `${beanId(exactAggregateCount + 1)}.md`),
+      beanBytes(exactAggregateCount + 1),
+    );
+    assert.throws(
+      () => projectIndex({ root: aggregateRoot }),
+      /resource_limit_exceeded/u,
+    );
+  } finally {
+    rmSync(perFileRoot, { force: true, recursive: true });
+    rmSync(originRoot, { force: true, recursive: true });
+    rmSync(countRoot, { force: true, recursive: true });
+    rmSync(aggregateRoot, { force: true, recursive: true });
+  }
 });
 
 test("projection is deterministic and validation rejects unsafe or stale Bean state", () => {

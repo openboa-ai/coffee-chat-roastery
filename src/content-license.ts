@@ -5,6 +5,7 @@ export const CONTENT_LICENSE_ID = "CC-BY-4.0" as const;
 export const CONTENT_LICENSE_URL =
   "https://creativecommons.org/licenses/by/4.0/" as const;
 export const ATTRIBUTION_PLACEHOLDER = "<OWNER_PROVIDED_ATTRIBUTION>" as const;
+export const MAX_CONTENT_LICENSE_CHARACTERS = 8 * 1024;
 
 export type ContentLicenseErrorCode =
   "invalid_content_license" | "unsupported_content_license";
@@ -122,6 +123,9 @@ export function renderContentLicense(attributionInput: string): ContentLicense {
 
 export function parseContentLicense(source: string): ContentLicense {
   if (typeof source !== "string") invalid("content license must be text");
+  if (source.length > MAX_CONTENT_LICENSE_CHARACTERS) {
+    invalid("content license exceeds the resource limit");
+  }
   const lines = source.split("\n");
   if (
     lines[0] !== "---" ||

@@ -23,6 +23,9 @@ import {
 } from "../dist/index.js";
 
 const repositoryRoot = new URL("..", import.meta.url).pathname;
+const MAX_CONTENT_LICENSE_CHARACTERS = 8 * 1024;
+const MAX_CONTRACT_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_CONTRACT_BUNDLE_BYTES = 8 * 1024 * 1024;
 
 function regularFiles(root, current = root) {
   return readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
@@ -129,6 +132,12 @@ test("the immutable bundle renders one fixed, round-trippable Bean license", () 
   );
   assert.throws(
     () => parseContentLicense(`${rendered.content}unknown: value\n`),
+    (error) =>
+      error instanceof ContentLicenseError &&
+      error.code === "invalid_content_license",
+  );
+  assert.throws(
+    () => parseContentLicense("\n".repeat(MAX_CONTENT_LICENSE_CHARACTERS + 1)),
     (error) =>
       error instanceof ContentLicenseError &&
       error.code === "invalid_content_license",
@@ -247,5 +256,59 @@ test("the contract digest is reproducible, framed, and sensitive to exact bytes"
     rmSync(directoryRace, { force: true, recursive: true });
     rmSync(malformedNames, { force: true, recursive: true });
     rmSync(external, { force: true, recursive: true });
+  }
+});
+
+test("contract digest rejects oversized files and aggregate bundles before unbounded reads", () => {
+  const contractRoot = join(repositoryRoot, "contract");
+  const perFile = mkdtempSync(join(tmpdir(), "roastery-contract-byte-limit-"));
+  const aggregate = mkdtempSync(
+    join(tmpdir(), "roastery-contract-aggregate-limit-"),
+  );
+  try {
+    cpSync(contractRoot, join(perFile, "contract"), { recursive: true });
+    const security = join(perFile, "contract", "security.md");
+    writeFileSync(security, Buffer.alloc(MAX_CONTRACT_FILE_BYTES, 0x61));
+    assert.doesNotThrow(() => computeContractDigest(perFile));
+    writeFileSync(security, Buffer.alloc(MAX_CONTRACT_FILE_BYTES + 1, 0x61));
+    assert.throws(
+      () => computeContractDigest(perFile),
+      /unsafe_contract_entry/u,
+    );
+
+    cpSync(contractRoot, join(aggregate, "contract"), { recursive: true });
+    const exactLimitPaths = [
+      "README.md",
+      "contract.json",
+      "publication.md",
+      "security.md",
+    ];
+    for (const relativePath of exactLimitPaths) {
+      writeFileSync(
+        join(aggregate, "contract", relativePath),
+        Buffer.alloc(MAX_CONTRACT_BUNDLE_BYTES / exactLimitPaths.length, 0x62),
+      );
+    }
+    for (const relativePath of [
+      "schemas/bean-frontmatter.schema.json",
+      "schemas/content-license.schema.json",
+      "schemas/index.schema.json",
+      "schemas/roastery.schema.json",
+      "templates/content-license.md",
+    ]) {
+      writeFileSync(join(aggregate, "contract", relativePath), Buffer.alloc(0));
+    }
+    assert.doesNotThrow(() => computeContractDigest(aggregate));
+    writeFileSync(
+      join(aggregate, "contract", "templates/content-license.md"),
+      Buffer.from("x"),
+    );
+    assert.throws(
+      () => computeContractDigest(aggregate),
+      /unsafe_contract_entry/u,
+    );
+  } finally {
+    rmSync(perFile, { force: true, recursive: true });
+    rmSync(aggregate, { force: true, recursive: true });
   }
 });

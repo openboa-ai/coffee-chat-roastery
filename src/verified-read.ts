@@ -150,6 +150,8 @@ export function readVerifiedFile(
   ancestors: DirectoryIdentity[],
   files: FileIdentity[],
   code: string,
+  maxBytes: number,
+  resourceCode = "resource_limit_exceeded",
 ): Buffer {
   let descriptor: number | undefined;
   try {
@@ -170,6 +172,13 @@ export function readVerifiedFile(
       !sameEntry(opened, current)
     ) {
       fail(code);
+    }
+    if (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes < 0 ||
+      opened.size > maxBytes
+    ) {
+      fail(resourceCode);
     }
     const identity: FileIdentity = {
       ctimeMs: opened.ctimeMs,

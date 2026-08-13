@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -15,6 +16,8 @@ import test from "node:test";
 import { computeContractDigest } from "../dist/index.js";
 
 const root = new URL("..", import.meta.url).pathname;
+const MAX_ROASTERY_JSON_BYTES = 64 * 1024;
+const MAX_CONTRACT_FILE_BYTES = 2 * 1024 * 1024;
 
 function run(...args) {
   return spawnSync(process.execPath, [join(root, "dist/cli.js"), ...args], {
@@ -95,6 +98,55 @@ test(
     }
   },
 );
+
+test("CLI rejects oversized repository and contract inputs", () => {
+  const repository = mkdtempSync(join(tmpdir(), "roastery-cli-resource-"));
+  const contractRepository = mkdtempSync(
+    join(tmpdir(), "roastery-cli-contract-resource-"),
+  );
+  try {
+    mkdirSync(join(repository, "roastery"));
+    writeFileSync(
+      join(repository, "roastery", "roastery.json"),
+      Buffer.alloc(MAX_ROASTERY_JSON_BYTES + 1, 0x61),
+    );
+    writeFileSync(
+      join(repository, "roastery", "index.json"),
+      '{\n  "beans": []\n}\n',
+    );
+    const validation = run(
+      "validate",
+      "--root",
+      repository,
+      "--contract-commit",
+      "a".repeat(40),
+      "--contract-digest",
+      `sha256:${"b".repeat(64)}`,
+    );
+    assert.equal(validation.status, 1);
+    assert.deepEqual(JSON.parse(validation.stdout), {
+      code: "resource_limit_exceeded",
+      status: "invalid",
+    });
+
+    cpSync(join(root, "contract"), join(contractRepository, "contract"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(contractRepository, "contract", "security.md"),
+      Buffer.alloc(MAX_CONTRACT_FILE_BYTES + 1, 0x62),
+    );
+    const digest = run("contract-digest", "--root", contractRepository);
+    assert.equal(digest.status, 1);
+    assert.deepEqual(JSON.parse(digest.stdout), {
+      code: "unsafe_contract_entry",
+      status: "invalid",
+    });
+  } finally {
+    rmSync(repository, { force: true, recursive: true });
+    rmSync(contractRepository, { force: true, recursive: true });
+  }
+});
 
 test("policy retains lean workflows and native squash authority", () => {
   const policy = JSON.parse(
