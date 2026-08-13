@@ -296,7 +296,9 @@ test("checked-in CI proves shipped dist is reproducible", async () => {
   );
   assert.match(quality, /npm run dist:check/u);
   assert.ok(policy.protected_paths.includes("/roastery/roastery.json"));
-  assert.ok(policy.protected_paths.includes("/scripts/build.mjs"));
+  assert.ok(policy.protected_paths.includes("/scripts/**"));
+  assert.ok(policy.protected_paths.includes("/src/**"));
+  assert.ok(policy.protected_paths.includes("/dist/**"));
   assert.ok(policy.protected_paths.includes("/tsconfig.build.json"));
   assert.ok(policy.protected_paths.includes("/tsconfig.json"));
   assert.equal(policy.merge_queue, false);
@@ -323,7 +325,7 @@ test("rejects a base-ref checkout in candidate quality", async () => {
         "          fetch-depth: 0\n",
         "          fetch-depth: 0\n          ref: ${{ github.event.pull_request.base.sha }}\n",
       ),
-    /exact candidate checkout/u,
+    /exact fail-closed candidate quality steps/u,
   );
 });
 
@@ -340,6 +342,60 @@ test("rejects a manufactured aggregate result", async () => {
   );
 });
 
+for (const [name, workflow, before, after] of [
+  [
+    "CodeQL write-capable job",
+    ".github/workflows/codeql.yml",
+    "      - name: Analyze with CodeQL\n",
+    "      - run: echo unexpected\n      - name: Analyze with CodeQL\n",
+  ],
+  [
+    "candidate quality job",
+    ".github/workflows/quality.yml",
+    "      - run: npm run ci:policy\n",
+    "      - run: echo unexpected\n      - run: npm run ci:policy\n",
+  ],
+  [
+    "trusted secret boundary",
+    ".github/workflows/secret-boundary.yml",
+    "    steps:\n",
+    "    env:\n      LEAK: ${{ secrets.OPENAI_API_KEY }}\n    steps:\n",
+  ],
+]) {
+  test(`rejects added executable behavior in the ${name}`, async () => {
+    await expectRejected(
+      (fixture) => replace(fixture, workflow, before, after),
+      /exact|secret|CodeQL/u,
+    );
+  });
+}
+
+for (const [name, workflow, step] of [
+  [
+    "candidate quality",
+    ".github/workflows/quality.yml",
+    "      - name: Scan complete Git history\n",
+  ],
+  [
+    "trusted boundary",
+    ".github/workflows/secret-boundary.yml",
+    "      - name: Scan candidate without executing it\n",
+  ],
+]) {
+  test(`rejects a failure-tolerant ${name} secret scan`, async () => {
+    await expectRejected(
+      (fixture) =>
+        replace(
+          fixture,
+          workflow,
+          step,
+          `${step}        continue-on-error: true\n`,
+        ),
+      /exact|secret|raw-blob/u,
+    );
+  });
+}
+
 test("rejects removal of the canonical contract from sensitive paths", async () => {
   await expectRejected(
     (fixture) =>
@@ -353,6 +409,29 @@ test("rejects removal of the canonical contract from sensitive paths", async () 
   );
 });
 
+for (const path of ["/src/**", "/dist/**", "/scripts/**"]) {
+  test(`rejects removing published execution boundary ${path}`, async () => {
+    await expectRejected(
+      (fixture) =>
+        replace(fixture, ".github/merge-policy.json", `    "${path}",\n`, ""),
+      /exact protected paths/u,
+    );
+  });
+}
+
+test("rejects a Dependabot ignore that can suppress security updates", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/dependabot.yml",
+        "    groups:\n",
+        '    ignore:\n      - dependency-name: "*"\n        update-types: [version-update:semver-major]\n    groups:\n',
+      ),
+    /major policy|parse uniquely/u,
+  );
+});
+
 test("rejects removal of the quality-owned policy step", async () => {
   await expectRejected(
     (fixture) =>
@@ -362,7 +441,7 @@ test("rejects removal of the quality-owned policy step", async () => {
         "      - run: npm run ci:policy\n",
         "",
       ),
-    /quality job runs the policy command/u,
+    /exact fail-closed candidate quality steps/u,
   );
 });
 
@@ -380,7 +459,7 @@ test("rejects moving the policy step outside the quality job", async () => {
       "jobs:\n",
       "jobs:\n  auxiliary:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    steps:\n      - run: npm run ci:policy\n\n",
     );
-  }, /quality job runs the policy command/u);
+  }, /exact fail-closed candidate quality steps/u);
 });
 
 test("rejects weakening the package policy command", async () => {
@@ -404,7 +483,7 @@ test("documents GitHub-native selective-review auto-merge", async () => {
 
   assert.match(agentContract, /pull request/u);
   assert.match(agentContract, /GitHub-native squash auto-merge/u);
-  assert.match(agentContract, /organization rules.*human review/iu);
+  assert.match(agentContract, /organization\s+rules[\s\S]*human review/iu);
   assert.match(agentContract, /custom write-token merge automation/u);
   assert.doesNotMatch(
     agentContract,

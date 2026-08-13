@@ -35,10 +35,10 @@ targets the earlier squash-merged contract commit, avoiding self-reference.
   contributors. Merge queue is disabled.
 - Accurately mark in the pull request whether it changes a sensitive path:
   workflow or repository policy, `AGENTS.md`, `CODEOWNERS`, licenses,
-  `SECURITY.md`, the build script and emit configuration, contracts, or the
-  canonical Roastery pin. Organization rules decide whether human review is
-  required; ordinary source, test, and dependency changes remain on the
-  required-CI auto-merge path.
+  `SECURITY.md`, published `src/**` or `dist/**`, build and validation scripts,
+  emit configuration, contracts, or the canonical Roastery pin. Organization
+  rules decide whether human review is required; tests, non-governance docs, and
+  compatible dependency maintenance remain on the required-CI auto-merge path.
 - Do not create custom write-token merge automation. Enable only GitHub-native
   squash auto-merge after the required checks pass.
 - Preserve explicit failed, invalid, skipped, and unavailable states.
