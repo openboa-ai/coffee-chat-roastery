@@ -41,6 +41,13 @@ targets the earlier squash-merged contract commit, avoiding self-reference.
   compatible dependency maintenance remain on the required-CI auto-merge path.
 - Do not create custom write-token merge automation. Enable only GitHub-native
   squash auto-merge after the required checks pass.
+- Required CI installs the integrity-pinned parser under `.github/policy-parser`
+  and runs structural policy before installing root dependencies. Treat its
+  manifest, lockfile, checker, and workflow ordering as one sensitive bootstrap
+  boundary.
+- Root dependency updates stay on the GitHub-native path only when package
+  names, exact versions, npm registry tarball identities, and sha512 lockfile
+  integrities pass that protected policy.
 - Preserve explicit failed, invalid, skipped, and unavailable states.
 - Contract changes and seed changes must remain separate pull requests. The seed
   may pin only the exact protected contract commit and reproducible bundle
