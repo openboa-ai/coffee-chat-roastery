@@ -58,7 +58,46 @@ git diff --check
 
 Commit: `test: enforce structural Roastery workflow policy`
 
-## Task 2: Harden automated security and dependency gates
+## Task 2: Bound untrusted Roastery resource consumption
+
+**Files:**
+
+- Modify: `src/verified-read.ts`
+- Modify: `src/roastery.ts`
+- Modify: `src/contract-digest.ts`
+- Modify: `src/content-license.ts`
+- Modify: relevant acceptance tests
+- Regenerate: `dist/**`
+
+Encode the validated Codex Security scan's resource-exhaustion paths before
+implementation. Add boundary-pass and one-unit-over-limit tests through the
+exported API and CLI for:
+
+- `roastery.json`, `index.json`, and `CONTENT_LICENSE.md` bytes;
+- each Bean's bytes, origin count, Bean count, and aggregate Bean bytes;
+- each fixed contract file and aggregate contract-bundle bytes;
+- direct `parseContentLicense` input length and newline-dense input.
+
+The common verified-read helper must reject an oversized descriptor from `fstat`
+before `readFileSync`. Callers supply named conservative byte limits and
+maintain explicit cardinality/aggregate budgets. Keep existing symlink,
+non-regular-file, no-follow, containment, canonical UTF-8, and TOCTOU identity
+checks. Preserve the public result shapes and fail-closed error states. Hash the
+fixed contract bundle one bounded file at a time instead of retaining every
+content buffer.
+
+**Checks:**
+
+```bash
+npm run build
+node --test tests/contract-acceptance.test.mjs tests/repository-acceptance.test.mjs tests/shell-smoke.test.mjs
+npm run typecheck
+git diff --check
+```
+
+Commit: `fix: bound Roastery validation resources`
+
+## Task 3: Harden automated security and dependency gates
 
 **Files:**
 
@@ -101,7 +140,7 @@ git diff --check
 
 Commit: `ci: harden Roastery security gates`
 
-## Task 3: Encode the selective-review agent lifecycle
+## Task 4: Encode the selective-review agent lifecycle
 
 **Files:**
 
@@ -126,7 +165,7 @@ git diff --check
 
 Commit: `docs: define selective-review Roastery lifecycle`
 
-## Task 4: Verify security closure
+## Task 5: Verify security closure
 
 From a clean install, run every repository command above plus the standard Codex
 Security scan's focused post-change review. Prove a normal non-sensitive change
