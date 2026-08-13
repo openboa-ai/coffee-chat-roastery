@@ -25,3 +25,6 @@ npm run package:check
 npm run ci:policy
 git diff --check
 ```
+
+Routine documentation-only pull requests use the approval-free lane;
+`coffee-security` remains reserved for policy evolution and protected paths.
