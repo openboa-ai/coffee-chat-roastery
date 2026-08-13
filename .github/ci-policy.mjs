@@ -23,97 +23,6 @@ if (existsSync(resolve(root, ".github/policy-parser/npm-shrinkwrap.json"))) {
     "isolated policy parser npm-shrinkwrap.json must be absent before loading",
   );
 }
-const workflowNames = [
-  "codeql.yml",
-  "policy.yml",
-  "quality.yml",
-  "secret-boundary.yml",
-];
-const pinnedActions = new Set([
-  "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-  "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-  "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-  "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3",
-  "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3",
-]);
-const candidateWorkflows = new Set(["policy.yml", "quality.yml"]);
-const requiredCommands = [
-  "npm run format:check",
-  "npm run typecheck",
-  "npm run dist:check",
-  "npm run repository:check",
-  "npm run smoke",
-  "npm run package:check",
-  "npm run ci:policy",
-];
-const authorEligibilityGate = `case "$EVENT_NAME" in
-  pull_request)
-    case "$AUTHOR_ASSOCIATION" in
-      OWNER|MEMBER)
-        test "$ACTOR" = "$PR_AUTHOR"
-        test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
-        ;;
-      *)
-        test "$ACTOR" = "dependabot[bot]"
-        test "$PR_AUTHOR" = "dependabot[bot]"
-        test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
-        ;;
-    esac
-    ;;
-  *) exit 1 ;;
-esac
-`;
-const authorEligibilityEnv = {
-  ACTOR: "${{ github.actor }}",
-  AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-  BASE_REPOSITORY: "${{ github.repository }}",
-  EVENT_NAME: "${{ github.event_name }}",
-  HEAD_REPOSITORY: "${{ github.event.pull_request.head.repo.full_name }}",
-  PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
-};
-const qualitySecretScan = [
-  "test ! -e .gitleaks.toml",
-  "test ! -e .gitleaksignore",
-  'gitleaks git --config "$GITLEAKS_TRUSTED_CONFIG" \\',
-  "  --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow \\",
-  "  --redact --no-banner .",
-  'gitleaks dir --config "$GITLEAKS_TRUSTED_CONFIG" \\',
-  "  --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow \\",
-  "  --redact --no-banner .",
-  "",
-].join("\n");
-const boundarySecretScan = [
-  "set -o pipefail",
-  "test ! -e candidate/.gitleaks.toml",
-  "test ! -e candidate/.gitleaksignore",
-  "ignore_path=/dev/null",
-  'gitleaks git --config "$GITLEAKS_TRUSTED_CONFIG" \\',
-  '  --gitleaks-ignore-path "$ignore_path" --ignore-gitleaks-allow \\',
-  '  --redact --no-banner "$GITHUB_WORKSPACE/candidate"',
-  'gitleaks dir --config "$GITLEAKS_TRUSTED_CONFIG" \\',
-  '  --gitleaks-ignore-path "$ignore_path" --ignore-gitleaks-allow \\',
-  '  --redact --no-banner "$GITHUB_WORKSPACE/candidate"',
-  'blob_dir="$(mktemp -d)"',
-  'if test -n "$BASE_SHA"; then',
-  "  git -C candidate fetch --no-tags --depth=1 \\",
-  '    "https://github.com/$BASE_REPOSITORY.git" "$BASE_SHA"',
-  '  object_range="$BASE_SHA..$HEAD_SHA"',
-  "else",
-  '  object_range="$HEAD_SHA"',
-  "fi",
-  'git -C candidate rev-list --objects "$object_range" |',
-  "  cut -d' ' -f1 |",
-  "  git -C candidate cat-file --batch-check='%(objectname) %(objecttype)' |",
-  "  awk '$2 == \"blob\" { print $1 }' |",
-  "  while read -r object_id; do",
-  '    git -C candidate cat-file blob "$object_id" > "$blob_dir/$object_id"',
-  "  done",
-  'gitleaks dir --config "$GITLEAKS_TRUSTED_CONFIG" \\',
-  '  --gitleaks-ignore-path "$ignore_path" --ignore-gitleaks-allow \\',
-  '  --redact --no-banner "$blob_dir"',
-  "",
-].join("\n");
-
 function fail(message) {
   failures.push(message);
 }
@@ -204,433 +113,74 @@ function equal(actual, expected) {
   return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
-function getSteps(job) {
-  return Array.isArray(job?.steps) ? job.steps : [];
-}
+const YAML_MAX_BYTES = 256 * 1024;
+const YAML_MAX_ALIASES = 100;
+const YAML_MAX_DEPTH = 32;
+const YAML_MAX_NODES = 10_000;
+const YAML_MAX_STRING_BYTES = 256 * 1024;
 
-function collectUses(value, uses = [], seen = new WeakSet()) {
-  if (!value || typeof value !== "object") return uses;
-  if (seen.has(value)) return uses;
-  seen.add(value);
-  if (Array.isArray(value)) {
-    for (const item of value) collectUses(item, uses, seen);
-    return uses;
-  }
-  for (const [key, item] of Object.entries(value)) {
-    if (key === "uses") uses.push(item);
-    collectUses(item, uses, seen);
-  }
-  return uses;
-}
-
-function collectStrings(value, strings = [], seen = new WeakSet()) {
-  if (typeof value === "string") {
-    strings.push(value);
-    return strings;
-  }
-  if (!value || typeof value !== "object") return strings;
-  if (seen.has(value)) return strings;
-  seen.add(value);
-  for (const item of Array.isArray(value) ? value : Object.values(value)) {
-    collectStrings(item, strings, seen);
-  }
-  return strings;
-}
-
-function requireWorkflowShape(name, workflow) {
-  if (
-    !isRecord(workflow) ||
-    !hasExactKeys(workflow, ["name", "on", "permissions", "jobs"])
-  ) {
-    fail(`${name}: workflow shape`);
-    return;
-  }
-  if (!isRecord(workflow.jobs)) {
-    fail(`${name}: jobs mapping`);
-    return;
-  }
-  for (const [jobName, job] of Object.entries(workflow.jobs)) {
-    if (
-      !isRecord(job) ||
-      !Number.isInteger(job["timeout-minutes"]) ||
-      job["timeout-minutes"] !== 15
-    ) {
-      fail(`${name}: ${jobName} timeout-minutes must be 15`);
+function assertYamlResourceBudget(value, label) {
+  const pending = [{ value, depth: 0 }];
+  const seen = new WeakSet();
+  let nodes = 0;
+  let stringBytes = 0;
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) break;
+    nodes += 1;
+    if (nodes > YAML_MAX_NODES) {
+      fail(`${label}: document node limit exceeded`);
+      return false;
     }
-  }
-}
-
-function validateActions(name, workflow) {
-  for (const action of collectUses(workflow)) {
-    if (typeof action !== "string" || !pinnedActions.has(action)) {
-      fail(`${name}: unapproved action ${String(action)}`);
+    if (current.depth > YAML_MAX_DEPTH) {
+      fail(`${label}: document depth limit exceeded`);
+      return false;
     }
-  }
-  for (const job of Object.values(workflow.jobs ?? {})) {
-    for (const step of getSteps(job)) {
-      if (
-        isRecord(step) &&
-        typeof step.uses === "string" &&
-        step.uses.startsWith("actions/checkout@") &&
-        step.with?.["persist-credentials"] !== false
-      ) {
-        fail(`${name}: checkout persists credentials`);
+    if (typeof current.value === "string") {
+      stringBytes += Buffer.byteLength(current.value, "utf8");
+      if (stringBytes > YAML_MAX_STRING_BYTES) {
+        fail(`${label}: document string limit exceeded`);
+        return false;
       }
+      continue;
+    }
+    if (!current.value || typeof current.value !== "object") continue;
+    if (seen.has(current.value)) continue;
+    seen.add(current.value);
+    const children = Array.isArray(current.value)
+      ? current.value
+      : Object.entries(current.value).flat();
+    for (const child of children) {
+      pending.push({ value: child, depth: current.depth + 1 });
     }
   }
+  return true;
 }
 
-function validateCandidateWorkflow(name, workflow) {
-  if (!hasExactKeys(workflow.on, ["pull_request"])) {
-    fail(`${name}: approved triggers`);
+function parseBoundedYaml(relativePath, label) {
+  const source = readFileSync(resolve(root, relativePath), "utf8");
+  if (Buffer.byteLength(source, "utf8") > YAML_MAX_BYTES) {
+    fail(`${label}: document byte limit exceeded`);
+    return undefined;
   }
-  if (!hasExactKeys(workflow.permissions, [])) {
-    fail(`${name}: root permissions must be empty`);
+  const document = parseDocument(source, { uniqueKeys: true });
+  if (document.errors.length > 0) {
+    fail(`${label}: must parse uniquely`);
+    return undefined;
   }
-  if (collectStrings(workflow).some((value) => value.includes("secrets."))) {
-    fail(`${name}: secret context`);
+  let value;
+  try {
+    value = document.toJS({ maxAliasCount: YAML_MAX_ALIASES });
+  } catch {
+    fail(`${label}: alias resource limit exceeded`);
+    return undefined;
   }
-  for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
-    if (name === "codeql.yml" && jobName === "analyze") continue;
-    if (
-      !isRecord(job.permissions) ||
-      Object.values(job.permissions).some((access) => access !== "read")
-    ) {
-      fail(`${name}: job permissions must be read-only`);
-      break;
-    }
-  }
-}
-
-function validateCodeql(workflow) {
-  const triggers = Object.keys(workflow.on ?? {}).sort();
-  if (
-    !equal(triggers, ["pull_request", "pull_request_target"]) &&
-    !equal(triggers, ["pull_request_target"])
-  ) {
-    fail("codeql.yml: trusted-base triggers");
-  }
-  const analyze = workflow.jobs?.analyze;
-  if (!hasExactKeys(workflow.jobs, ["analyze"])) fail("codeql.yml: exact jobs");
-  if (
-    !isRecord(analyze) ||
-    !hasExactKeys(analyze, [
-      "name",
-      "if",
-      "runs-on",
-      "timeout-minutes",
-      "permissions",
-      "steps",
-    ]) ||
-    analyze.name !== "Roastery CodeQL JavaScript-TypeScript" ||
-    analyze.if !==
-      "((github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') && github.actor == github.event.pull_request.user.login && github.event.pull_request.head.repo.full_name == github.repository) || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)" ||
-    analyze["runs-on"] !== "ubuntu-24.04" ||
-    !equal(analyze.permissions, {
-      contents: "read",
-      actions: "read",
-      "security-events": "write",
-    })
-  ) {
-    fail("codeql.yml: CodeQL job permissions");
-  }
-  const steps = getSteps(analyze);
-  if (
-    !equal(steps, [
-      {
-        name: "Check out repository without persisted credentials",
-        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        with: {
-          repository: "${{ github.event.pull_request.head.repo.full_name }}",
-          ref: "${{ github.event.pull_request.head.sha }}",
-          "persist-credentials": false,
-        },
-      },
-      {
-        name: "Initialize CodeQL",
-        uses: "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3",
-        with: { languages: "javascript-typescript", "build-mode": "none" },
-      },
-      {
-        name: "Analyze with CodeQL",
-        uses: "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3",
-      },
-    ])
-  ) {
-    fail("codeql.yml: exact CodeQL actions");
-  }
-}
-
-function validateDependencyReview(workflow) {
-  const review = workflow.jobs?.["dependency-review"];
-  if (!hasExactKeys(workflow.jobs, ["dependency-review"]))
-    fail("policy.yml: exact jobs");
-  if (
-    !isRecord(review) ||
-    !hasExactKeys(review, [
-      "name",
-      "runs-on",
-      "timeout-minutes",
-      "permissions",
-      "steps",
-    ]) ||
-    review.name !== "Roastery dependency review" ||
-    review["runs-on"] !== "ubuntu-24.04" ||
-    !equal(review.permissions, { contents: "read" })
-  ) {
-    fail("policy.yml: dependency-review permissions");
-  }
-  if (
-    !equal(getSteps(review), [
-      {
-        name: "Review pull request dependencies",
-        uses: "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-        with: {
-          "fail-on-severity": "moderate",
-          "fail-on-scopes": "runtime,development,unknown",
-          "show-patched-versions": true,
-          "comment-summary-in-pr": "never",
-        },
-      },
-    ])
-  ) {
-    fail("policy.yml: dependency-review inputs");
-  }
-}
-
-function validateQuality(workflow) {
-  const { eligibility, quality, aggregate } = workflow.jobs ?? {};
-  if (!hasExactKeys(workflow.jobs, ["eligibility", "quality", "aggregate"])) {
-    fail("quality.yml: exact jobs");
-  }
-  const eligibilitySteps = getSteps(eligibility);
-  if (
-    !isRecord(eligibility) ||
-    !hasExactKeys(eligibility, [
-      "name",
-      "runs-on",
-      "timeout-minutes",
-      "permissions",
-      "steps",
-    ]) ||
-    eligibility.name !== "Roastery author eligibility" ||
-    eligibility["runs-on"] !== "ubuntu-24.04" ||
-    !equal(eligibility.permissions, { contents: "read" }) ||
-    eligibilitySteps.length !== 1 ||
-    !equal(eligibilitySteps[0], {
-      name: "Decide author eligibility",
-      env: authorEligibilityEnv,
-      run: authorEligibilityGate,
-    })
-  ) {
-    fail("quality.yml: author eligibility job contract");
-  }
-  if (
-    !isRecord(quality) ||
-    !hasExactKeys(quality, [
-      "name",
-      "needs",
-      "runs-on",
-      "timeout-minutes",
-      "permissions",
-      "steps",
-    ]) ||
-    quality.name !== "Roastery deterministic quality" ||
-    quality.needs !== "eligibility" ||
-    !equal(quality.permissions, { contents: "read" })
-  ) {
-    fail("quality.yml: candidate checkout requires eligibility");
-  }
-  const steps = getSteps(quality);
-  if (
-    !equal(steps, [
-      {
-        name: "Check out repository without persisted credentials",
-        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        with: { "fetch-depth": 0, "persist-credentials": false },
-      },
-      {
-        name: "Install immutable Gitleaks",
-        run: ".github/scripts/install-gitleaks.sh",
-      },
-      { name: "Scan complete Git history", run: qualitySecretScan },
-      {
-        name: "Set up Node.js",
-        uses: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-        with: { "node-version": 24, cache: "npm" },
-      },
-      {
-        name: "Authenticate the isolated policy parser lock",
-        run: "node .github/policy-bootstrap.mjs",
-      },
-      { run: "npm ci --ignore-scripts --prefix .github/policy-parser" },
-      {
-        run: "npm audit --audit-level=moderate --prefix .github/policy-parser",
-      },
-      {
-        name: "Enforce repository policy before candidate dependencies",
-        run: "node .github/ci-policy.mjs",
-      },
-      { run: "npm ci --ignore-scripts" },
-      { run: "npm audit --audit-level=moderate" },
-      ...requiredCommands.map((run) => ({ run })),
-    ])
-  ) {
-    fail(
-      "quality.yml: exact fail-closed candidate quality steps and secret scan",
-    );
-  }
-  if (
-    !isRecord(aggregate) ||
-    !hasExactKeys(aggregate, [
-      "name",
-      "if",
-      "needs",
-      "runs-on",
-      "timeout-minutes",
-      "permissions",
-      "steps",
-    ]) ||
-    aggregate.name !== "Roastery required" ||
-    aggregate.if !== "always()" ||
-    !equal(aggregate.needs, ["eligibility", "quality"]) ||
-    aggregate["runs-on"] !== "ubuntu-24.04" ||
-    aggregate["timeout-minutes"] !== 15 ||
-    !equal(aggregate.permissions, { contents: "read" }) ||
-    !equal(getSteps(aggregate), [
-      {
-        name: "Require every applicable lane",
-        env: {
-          ELIGIBILITY_RESULT: "${{ needs.eligibility.result }}",
-          QUALITY_RESULT: "${{ needs.quality.result }}",
-        },
-        run: 'test "$ELIGIBILITY_RESULT" = success\ntest "$QUALITY_RESULT" = success\n',
-      },
-    ])
-  ) {
-    fail("quality.yml: aggregate contract");
-  }
-}
-
-function validateSecretBoundary(workflow) {
-  if (
-    !hasExactKeys(workflow.on, ["pull_request_target", "workflow_dispatch"])
-  ) {
-    fail("secret-boundary.yml: approved triggers");
-  }
-  if (
-    !equal(workflow.on?.pull_request_target?.types, [
-      "opened",
-      "synchronize",
-      "reopened",
-      "ready_for_review",
-    ]) ||
-    workflow.on?.workflow_dispatch !== null ||
-    !equal(workflow.permissions, { contents: "read" }) ||
-    !hasExactKeys(workflow.jobs, ["secret-boundary"])
-  ) {
-    fail("secret-boundary.yml: trusted boundary shape");
-  }
-  const boundary = workflow.jobs?.["secret-boundary"];
-  if (
-    !isRecord(boundary) ||
-    !hasExactKeys(boundary, [
-      "name",
-      "if",
-      "runs-on",
-      "timeout-minutes",
-      "steps",
-    ]) ||
-    boundary.name !== "Secret boundary" ||
-    boundary["runs-on"] !== "ubuntu-24.04" ||
-    boundary["timeout-minutes"] !== 15 ||
-    boundary.if !==
-      "github.event_name == 'workflow_dispatch' || ((github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') && github.actor == github.event.pull_request.user.login && github.event.pull_request.head.repo.full_name == github.repository) || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)"
-  ) {
-    fail("secret-boundary.yml: trusted author boundary");
-  }
-  const steps = getSteps(boundary);
-  const strings = collectStrings(workflow);
-  if (
-    strings.some(
-      (value) =>
-        /(?:^|\s)(?:npm|node)\s/u.test(value) || value.includes("secrets."),
-    )
-  ) {
-    fail("secret-boundary.yml: candidate execution or secret context");
-  }
-  if (
-    !equal(steps, [
-      {
-        name: "Check out trusted security controls",
-        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        with: {
-          ref: "${{ github.event.pull_request.base.sha || github.sha }}",
-          "fetch-depth": 1,
-          "persist-credentials": false,
-          path: "trusted",
-        },
-      },
-      {
-        name: "Install immutable Gitleaks from trusted base",
-        run: "trusted/.github/scripts/install-gitleaks.sh",
-      },
-      {
-        name: "Check out candidate as data only",
-        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        with: {
-          repository:
-            "${{ github.event.pull_request.head.repo.full_name || github.repository }}",
-          ref: "${{ github.event.pull_request.head.sha || github.sha }}",
-          "fetch-depth": 0,
-          "persist-credentials": false,
-          path: "candidate",
-        },
-      },
-      {
-        name: "Scan candidate without executing it",
-        env: {
-          BASE_SHA: "${{ github.event.pull_request.base.sha || '' }}",
-          BASE_REPOSITORY: "${{ github.repository }}",
-          HEAD_SHA: "${{ github.event.pull_request.head.sha || github.sha }}",
-        },
-        run: boundarySecretScan,
-      },
-    ])
-  ) {
-    fail(
-      "secret-boundary.yml: exact fail-closed history, worktree, and raw-blob scans",
-    );
-  }
-}
-
-function validateReadOnlyPermissions(workflows) {
-  for (const [name, workflow] of Object.entries(workflows)) {
-    for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
-      const allowsSecurityWrite =
-        name === "codeql.yml" && jobName === "analyze";
-      if (
-        isRecord(job.permissions) &&
-        Object.entries(job.permissions).some(
-          ([scope, access]) =>
-            access === "write" &&
-            !(allowsSecurityWrite && scope === "security-events"),
-        )
-      ) {
-        fail(`${name}: only CodeQL may write security events`);
-      }
-    }
-  }
+  return assertYamlResourceBudget(value, label) ? value : undefined;
 }
 
 function validateDependabot() {
-  const source = readFileSync(resolve(root, ".github/dependabot.yml"), "utf8");
-  const document = parseDocument(source, { uniqueKeys: true });
-  if (document.errors.length > 0) {
-    fail("dependabot.yml: must parse uniquely");
-    return;
-  }
-  const config = document.toJS({ maxAliasCount: -1 });
+  const config = parseBoundedYaml(".github/dependabot.yml", "dependabot.yml");
+  if (config === undefined) return;
   const updates = config?.updates;
   if (!Array.isArray(updates) || updates.length !== 2) {
     fail("dependabot.yml: exact update lanes");
@@ -750,8 +300,9 @@ function validateMergePolicy() {
 const discovered = readdirSync(workflowRoot)
   .filter((name) => /\.ya?ml$/u.test(name))
   .sort();
-if (!equal(discovered, [...workflowNames, "trusted.yml"].sort()))
-  fail("workflow set must contain legacy gates plus the trusted wrapper");
+if (!equal(discovered, ["trusted.yml"])) {
+  fail("target repository must expose only the trusted wrapper");
+}
 
 const trustedWorkflowSource = readFileSync(
   resolve(workflowRoot, "trusted.yml"),
@@ -784,32 +335,6 @@ jobs:
 if (!trustedControlSha || trustedWorkflowSource !== expectedTrustedWorkflow) {
   fail("trusted wrapper must remain exact");
 }
-
-const workflows = {};
-for (const name of workflowNames) {
-  const document = parseDocument(
-    readFileSync(resolve(workflowRoot, name), "utf8"),
-    {
-      uniqueKeys: true,
-    },
-  );
-  if (document.errors.length > 0) {
-    fail(`${name}: workflow must parse uniquely`);
-    continue;
-  }
-  const workflow = document.toJS({ maxAliasCount: -1 });
-  workflows[name] = workflow;
-  requireWorkflowShape(name, workflow);
-  validateActions(name, workflow);
-  if (candidateWorkflows.has(name)) validateCandidateWorkflow(name, workflow);
-}
-
-if (workflows["codeql.yml"]) validateCodeql(workflows["codeql.yml"]);
-if (workflows["policy.yml"]) validateDependencyReview(workflows["policy.yml"]);
-if (workflows["quality.yml"]) validateQuality(workflows["quality.yml"]);
-if (workflows["secret-boundary.yml"])
-  validateSecretBoundary(workflows["secret-boundary.yml"]);
-validateReadOnlyPermissions(workflows);
 
 const packageJson = JSON.parse(
   readFileSync(resolve(root, "package.json"), "utf8"),
