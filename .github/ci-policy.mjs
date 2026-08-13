@@ -362,6 +362,10 @@ function validateQuality(workflow) {
         with: { "node-version": 24, cache: "npm" },
       },
       { run: "npm ci --ignore-scripts" },
+      {
+        name: "Enforce repository policy before delegated scripts",
+        run: "node .github/ci-policy.mjs",
+      },
       { run: "npm audit --audit-level=moderate" },
       ...requiredCommands.map((run) => ({ run })),
     ])

@@ -66,6 +66,24 @@ test("accepts the checked-in workflow policy", async () => {
   assert.equal(result.status, 0, result.output);
 });
 
+test("runs structural policy directly before delegated package scripts", async () => {
+  const workflow = parse(
+    await readFile(
+      join(repositoryRoot, ".github/workflows/quality.yml"),
+      "utf8",
+    ),
+  );
+  const runs = workflow.jobs.quality.steps
+    .map((step) => step.run)
+    .filter((run) => typeof run === "string");
+  const installIndex = runs.indexOf("npm ci --ignore-scripts");
+  const policyIndex = runs.indexOf("node .github/ci-policy.mjs");
+  const delegatedIndex = runs.findIndex((run) => run.startsWith("npm run "));
+
+  assert.equal(policyIndex, installIndex + 1);
+  assert.ok(policyIndex < delegatedIndex);
+});
+
 test("owner and member gates bind actor, author, and head repository", async () => {
   const quality = parse(
     await readFile(
@@ -491,6 +509,19 @@ test("rejects removal of the quality-owned policy step", async () => {
         fixture,
         ".github/workflows/quality.yml",
         "      - run: npm run ci:policy\n",
+        "",
+      ),
+    /exact fail-closed candidate quality steps/u,
+  );
+});
+
+test("rejects removal of the direct pre-delegation policy gate", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "      - name: Enforce repository policy before delegated scripts\n        run: node .github/ci-policy.mjs\n",
         "",
       ),
     /exact fail-closed candidate quality steps/u,
