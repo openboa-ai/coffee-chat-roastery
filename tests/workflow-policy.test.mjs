@@ -121,6 +121,17 @@ test("authenticates the isolated parser lock before loading its code", async () 
   );
 });
 
+test("rejects a competing parser shrinkwrap before loading code", async () => {
+  await expectRejected(
+    (fixture) =>
+      writeFile(
+        join(fixture, ".github/policy-parser/npm-shrinkwrap.json"),
+        `${JSON.stringify({ lockfileVersion: 3, packages: {} })}\n`,
+      ),
+    /npm-shrinkwrap\.json.*absent before loading/u,
+  );
+});
+
 test("runs isolated structural policy before candidate dependencies and delegated scripts", async () => {
   const workflow = parse(
     await readFile(
