@@ -21,6 +21,7 @@ import {
   renderContentLicense,
   validate,
 } from "../dist/index.js";
+import { readVerifiedFile } from "../dist/verified-read.js";
 
 /** @type {import("../dist/index.js").ContractPin} */
 const contract = {
@@ -35,6 +36,75 @@ const MAX_BEAN_BYTES = 256 * 1024;
 const MAX_BEANS = 1024;
 const MAX_TOTAL_BEAN_BYTES = 8 * 1024 * 1024;
 const MAX_ORIGINS_PER_BEAN = 64;
+
+test("verified reads stay within budget when a file grows after the size check", () => {
+  const root = mkdtempSync(join(tmpdir(), "roastery-growing-read-"));
+  const target = join(root, "candidate.txt");
+  const maxBytes = 16;
+  writeFileSync(target, Buffer.alloc(maxBytes, 0x61));
+
+  const originalLstat = fs.lstatSync;
+  const originalReadFile = fs.readFileSync;
+  const originalRead = fs.readSync;
+  let grew = false;
+  let observedBytes = 0;
+  Object.defineProperty(fs, "lstatSync", {
+    configurable: true,
+    value: function lstatAndGrow(path, options) {
+      const stat = originalLstat.call(fs, path, options);
+      if (!grew && String(path) === target) {
+        grew = true;
+        fs.writeFileSync(target, Buffer.alloc(1024 * 1024, 0x62));
+      }
+      return stat;
+    },
+  });
+  Object.defineProperty(fs, "readFileSync", {
+    configurable: true,
+    value: function measuredReadFile(path, options) {
+      const content = originalReadFile.call(fs, path, options);
+      if (typeof path === "number" && Buffer.isBuffer(content)) {
+        observedBytes += content.length;
+      }
+      return content;
+    },
+  });
+  Object.defineProperty(fs, "readSync", {
+    configurable: true,
+    value: function measuredRead(...args) {
+      const count = Reflect.apply(originalRead, fs, args);
+      observedBytes += count;
+      return count;
+    },
+  });
+  syncBuiltinESMExports();
+
+  try {
+    assert.throws(
+      () => readVerifiedFile(target, [], [], "unsafe_path", maxBytes),
+      /unsafe_path/u,
+    );
+    assert.ok(
+      observedBytes <= maxBytes + 1,
+      `read ${observedBytes} bytes for a ${maxBytes}-byte budget`,
+    );
+  } finally {
+    Object.defineProperty(fs, "lstatSync", {
+      configurable: true,
+      value: originalLstat,
+    });
+    Object.defineProperty(fs, "readFileSync", {
+      configurable: true,
+      value: originalReadFile,
+    });
+    Object.defineProperty(fs, "readSync", {
+      configurable: true,
+      value: originalRead,
+    });
+    syncBuiltinESMExports();
+    rmSync(root, { force: true, recursive: true });
+  }
+});
 
 function beanId(index) {
   return `00000000-0000-7000-8000-${index.toString(16).padStart(12, "0")}`;

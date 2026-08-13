@@ -34,10 +34,17 @@ const requiredCommands = [
 ];
 const authorEligibilityGate = `case "$EVENT_NAME" in
   pull_request)
-    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
-    test "$ACTOR" = "dependabot[bot]"
-    test "$PR_AUTHOR" = "dependabot[bot]"
-    test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+    case "$AUTHOR_ASSOCIATION" in
+      OWNER|MEMBER)
+        test "$ACTOR" = "$PR_AUTHOR"
+        test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+        ;;
+      *)
+        test "$ACTOR" = "dependabot[bot]"
+        test "$PR_AUTHOR" = "dependabot[bot]"
+        test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+        ;;
+    esac
     ;;
   *) exit 1 ;;
 esac
@@ -428,7 +435,7 @@ function validateSecretBoundary(workflow) {
     boundary["runs-on"] !== "ubuntu-24.04" ||
     boundary["timeout-minutes"] !== 15 ||
     boundary.if !==
-      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)"
+      "github.event_name == 'workflow_dispatch' || ((github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') && github.actor == github.event.pull_request.user.login && github.event.pull_request.head.repo.full_name == github.repository) || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)"
   ) {
     fail("secret-boundary.yml: trusted author boundary");
   }

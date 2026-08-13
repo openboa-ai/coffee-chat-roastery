@@ -1,4 +1,4 @@
-# Ownership routing only; repository rules require zero human approvals.
+# Ownership routing; repository rules add team review only for sensitive paths.
 /.github/** @openboa
 /.githooks/** @openboa
 /.gitleaksignore @openboa

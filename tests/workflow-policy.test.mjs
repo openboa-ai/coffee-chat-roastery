@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { promisify } from "node:util";
+import { parse } from "yaml";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -63,6 +64,31 @@ async function expectRejected(mutate, message) {
 test("accepts the checked-in workflow policy", async () => {
   const result = await runChecker(repositoryRoot);
   assert.equal(result.status, 0, result.output);
+});
+
+test("owner and member gates bind actor, author, and head repository", async () => {
+  const quality = parse(
+    await readFile(
+      join(repositoryRoot, ".github/workflows/quality.yml"),
+      "utf8",
+    ),
+  );
+  const gate = quality.jobs.eligibility.steps[0].run;
+  await assert.rejects(
+    () =>
+      execFileAsync("bash", ["-euo", "pipefail", "-c", gate], {
+        env: {
+          ...process.env,
+          ACTOR: "different-maintainer",
+          AUTHOR_ASSOCIATION: "OWNER",
+          BASE_REPOSITORY: "openboa-ai/coffee-chat-roastery",
+          EVENT_NAME: "pull_request",
+          HEAD_REPOSITORY: "openboa-ai/coffee-chat-roastery",
+          PR_AUTHOR: "pull-request-author",
+        },
+      }),
+    /Command failed/u,
+  );
 });
 
 test("rejects duplicate YAML mapping keys", async () => {
@@ -162,6 +188,32 @@ test("rejects a weakened candidate author gate", async () => {
         "CONTRIBUTOR",
       ),
     /author eligibility job contract/u,
+  );
+});
+
+test("rejects removing maintainer actor and author identity binding", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        '                  test "$ACTOR" = "$PR_AUTHOR"\n',
+        "                  true\n",
+      ),
+    /author eligibility job contract/u,
+  );
+});
+
+test("rejects removing trusted-boundary maintainer identity binding", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/secret-boundary.yml",
+        "      == github.event.pull_request.user.login &&\n",
+        "      != github.event.pull_request.user.login &&\n",
+      ),
+    /trusted author boundary/u,
   );
 });
 

@@ -1,4 +1,4 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync, } from "node:fs";
 import { resolve } from "node:path";
 export class UnsafeReadError extends Error {
     code;
@@ -10,6 +10,20 @@ export class UnsafeReadError extends Error {
 }
 function fail(code) {
     throw new UnsafeReadError(code);
+}
+function readBounded(descriptor, maxBytes) {
+    const chunks = [];
+    let total = 0;
+    while (total <= maxBytes) {
+        const remaining = maxBytes - total + 1;
+        const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, remaining));
+        const count = readSync(descriptor, chunk, 0, chunk.length, null);
+        if (count === 0)
+            break;
+        chunks.push(chunk.subarray(0, count));
+        total += count;
+    }
+    return Buffer.concat(chunks, total);
 }
 function sameEntry(left, right) {
     return (left.dev === right.dev &&
@@ -124,6 +138,7 @@ export function readVerifiedFile(path, ancestors, files, code, maxBytes, resourc
         }
         if (!Number.isSafeInteger(maxBytes) ||
             maxBytes < 0 ||
+            maxBytes === Number.MAX_SAFE_INTEGER ||
             opened.size > maxBytes) {
             fail(resourceCode);
         }
@@ -137,10 +152,12 @@ export function readVerifiedFile(path, ancestors, files, code, maxBytes, resourc
             size: opened.size,
         };
         verifyDirectories(ancestors, code);
-        const content = readFileSync(descriptor);
+        const content = readBounded(descriptor, maxBytes);
         const afterRead = fstatSync(descriptor);
         if (!sameEntry(opened, afterRead))
             fail(code);
+        if (content.length > maxBytes)
+            fail(resourceCode);
         verifyDirectories(ancestors, code);
         verifyFile(identity, code);
         files.push(identity);

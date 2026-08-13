@@ -117,7 +117,7 @@ Use the Task 1 contract as the failing specification, then:
   before repository npm scripts;
 - configure dependency review for moderate severity and
   `runtime,development,unknown`, show patched versions, never comment, and exact
-  merge-group base/head SHAs;
+  pull-request base/head SHAs;
 - preserve trusted-base Gitleaks worktree/history/raw-blob coverage;
 - add the Roastery CodeQL job to the declared required contexts;
 - split production/development minor+patch Dependabot groups, keep security

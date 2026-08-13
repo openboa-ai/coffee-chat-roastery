@@ -2,9 +2,10 @@
 
 ## Supported surface
 
-Security reports may cover the closed CLI/package surface, repository policy,
-and workflows. The validator, parser, schema, publication, and seed behaviors
-are deferred and must not be represented as implemented.
+Security reports may cover the closed CLI/package surface, validator, parser,
+schema, publication and seed behavior, repository policy, and workflows. Claims
+about future Bean-authoring or compatibility features remain out of scope until
+those capabilities are implemented.
 
 Any future repository or Bean content is untrusted data. It must never be
 executed or grant tools, credentials, network access, persistence, or policy
