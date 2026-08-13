@@ -2,6 +2,7 @@ export declare const CONTENT_LICENSE_SCOPE: "roastery/beans/**";
 export declare const CONTENT_LICENSE_ID: "CC-BY-4.0";
 export declare const CONTENT_LICENSE_URL: "https://creativecommons.org/licenses/by/4.0/";
 export declare const ATTRIBUTION_PLACEHOLDER: "<OWNER_PROVIDED_ATTRIBUTION>";
+export declare const MAX_CONTENT_LICENSE_CHARACTERS: number;
 export type ContentLicenseErrorCode = "invalid_content_license" | "unsupported_content_license";
 export declare class ContentLicenseError extends Error {
     readonly code: ContentLicenseErrorCode;

@@ -2,7 +2,6 @@ name: Roastery quality
 
 on:
   pull_request:
-  merge_group:
 
 permissions: {}
 
@@ -10,19 +9,33 @@ jobs:
   eligibility:
     name: Roastery author eligibility
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - name: Decide author eligibility
         env:
+          ACTOR: ${{ github.actor }}
           AUTHOR_ASSOCIATION:
             ${{ github.event.pull_request.author_association }}
+          BASE_REPOSITORY: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           case "$EVENT_NAME" in
-            merge_group) exit 0 ;;
             pull_request)
-              case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+              case "$AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER)
+                  test "$ACTOR" = "$PR_AUTHOR"
+                  test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+                  ;;
+                *)
+                  test "$ACTOR" = "dependabot[bot]"
+                  test "$PR_AUTHOR" = "dependabot[bot]"
+                  test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+                  ;;
+              esac
               ;;
             *) exit 1 ;;
           esac
@@ -31,6 +44,7 @@ jobs:
     name: Roastery deterministic quality
     needs: eligibility
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -56,10 +70,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=moderate
       - run: npm run format:check
       - run: npm run typecheck
-      - run: npm run build
+      - run: npm run dist:check
       - run: npm run repository:check
       - run: npm run smoke
       - run: npm run package:check
@@ -72,6 +87,7 @@ jobs:
       - eligibility
       - quality
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:

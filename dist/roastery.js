@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readdirSync, realpathSync } from "node:fs";
+import { lstatSync, opendirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
 import { TextDecoder } from "node:util";
@@ -15,6 +15,13 @@ const UTF8_DECODER = new TextDecoder("utf-8", {
     fatal: true,
     ignoreBOM: true,
 });
+const MAX_ROASTERY_JSON_BYTES = 64 * 1024;
+const MAX_INDEX_BYTES = 256 * 1024;
+const MAX_CONTENT_LICENSE_BYTES = 8 * 1024;
+const MAX_BEAN_BYTES = 256 * 1024;
+const MAX_BEANS = 1024;
+const MAX_TOTAL_BEAN_BYTES = 8 * 1024 * 1024;
+const MAX_ORIGINS_PER_BEAN = 64;
 const SPECIAL_USE_DNS_TLDS = new Set([
     "alt",
     "arpa",
@@ -68,11 +75,11 @@ function object(value, keys, code) {
     }
     return value;
 }
-function readJson(path, directories, files, keys, code) {
+function readJson(path, directories, files, keys, code, maxBytes) {
     let source;
     let parsed;
     try {
-        source = decodeUtf8(readVerifiedFile(path, directories, files, "unsafe_path"), code);
+        source = decodeUtf8(readVerifiedFile(path, directories, files, "unsafe_path", maxBytes), code);
         parsed = JSON.parse(source);
     }
     catch (error) {
@@ -180,7 +187,7 @@ function publicOrigin(value) {
         labels.every((label) => /^(?:[a-z0-9]|[a-z0-9][a-z0-9-]{0,61}[a-z0-9])$/u.test(label)));
 }
 function parseBean(path, directories, files) {
-    const content = readVerifiedFile(path, directories, files, "unsafe_path");
+    const content = readVerifiedFile(path, directories, files, "unsafe_path", MAX_BEAN_BYTES);
     const source = decodeUtf8(content, "invalid_bean");
     if (!source.startsWith("---\n"))
         fail("invalid_bean");
@@ -198,6 +205,8 @@ function parseBean(path, directories, files) {
     if (header.length > 0) {
         if (header.shift() !== "origins:" || header.length === 0)
             fail("invalid_bean");
+        if (header.length > MAX_ORIGINS_PER_BEAN)
+            fail("resource_limit_exceeded");
         const origins = new Set();
         for (const line of header) {
             const origin = line.slice(4);
@@ -244,24 +253,38 @@ function scanBeans(context) {
     const beansDirectory = captureDirectory(directory, context.directories, "unsafe_path");
     context.directories.push(beansDirectory);
     const ids = new Set();
-    const entries = readdirSync(directory, { withFileTypes: true });
     const beans = [];
-    for (const entry of entries) {
-        const path = resolve(directory, entry.name);
-        const stat = lstatSync(path);
-        if (!stat.isFile() || stat.isSymbolicLink())
-            fail("unsafe_path");
-        safeChild(context.root, path);
-        if (!entry.name.endsWith(".md"))
-            fail("invalid_bean_path");
-        const bean = parseBean(path, context.directories, context.files);
-        if (ids.has(bean.id))
-            fail("duplicate_bean_id");
-        ids.add(bean.id);
-        beans.push({
-            id: bean.id,
-            digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
-        });
+    let totalBeanBytes = 0;
+    const handle = opendirSync(directory);
+    let entryCount = 0;
+    try {
+        for (let entry = handle.readSync(); entry !== null; entry = handle.readSync()) {
+            entryCount += 1;
+            if (entryCount > MAX_BEANS)
+                fail("resource_limit_exceeded");
+            const path = resolve(directory, entry.name);
+            const stat = lstatSync(path);
+            if (!stat.isFile() || stat.isSymbolicLink())
+                fail("unsafe_path");
+            safeChild(context.root, path);
+            if (!entry.name.endsWith(".md"))
+                fail("invalid_bean_path");
+            const bean = parseBean(path, context.directories, context.files);
+            totalBeanBytes += bean.content.length;
+            if (totalBeanBytes > MAX_TOTAL_BEAN_BYTES) {
+                fail("resource_limit_exceeded");
+            }
+            if (ids.has(bean.id))
+                fail("duplicate_bean_id");
+            ids.add(bean.id);
+            beans.push({
+                id: bean.id,
+                digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
+            });
+        }
+    }
+    finally {
+        handle.closeSync();
     }
     verifyDirectories(context.directories, "unsafe_path");
     verifyFiles(context.files, "unsafe_path");
@@ -284,7 +307,7 @@ export function checkIndex({ root }) {
         const projected = indexBytes(beans);
         const indexPath = resolve(context.roasteryRoot, "index.json");
         safeChild(context.root, indexPath);
-        if (readVerifiedFile(indexPath, context.directories, context.files, "unsafe_path").toString("utf8") !== projected) {
+        if (readVerifiedFile(indexPath, context.directories, context.files, "unsafe_path", MAX_INDEX_BYTES).toString("utf8") !== projected) {
             fail("stale_index");
         }
         verifyDirectories(context.directories, "unsafe_path");
@@ -301,7 +324,7 @@ export function validate({ root, mode, expectedContract, }) {
         const context = createContext(root);
         const manifestPath = resolve(context.roasteryRoot, "roastery.json");
         safeChild(context.root, manifestPath);
-        const manifest = readJson(manifestPath, context.directories, context.files, ["contract", "repository"], "invalid_roastery").document;
+        const manifest = readJson(manifestPath, context.directories, context.files, ["contract", "repository"], "invalid_roastery", MAX_ROASTERY_JSON_BYTES).document;
         const repository = normalizeRepository(manifest.repository);
         const actualContract = contractPin(manifest.contract);
         const trustedContract = contractPin(expectedContract);
@@ -313,7 +336,7 @@ export function validate({ root, mode, expectedContract, }) {
         const beans = scanBeans(context);
         const indexPath = resolve(context.roasteryRoot, "index.json");
         safeChild(context.root, indexPath);
-        const index = readJson(indexPath, context.directories, context.files, ["beans"], "invalid_index");
+        const index = readJson(indexPath, context.directories, context.files, ["beans"], "invalid_index", MAX_INDEX_BYTES);
         if (!Array.isArray(index.document.beans) ||
             index.source !== indexBytes(beans)) {
             fail("stale_index");
@@ -342,7 +365,7 @@ export function validate({ root, mode, expectedContract, }) {
             }
             if (licenseEntry === undefined)
                 fail("invalid_content_license");
-            parseContentLicense(decodeUtf8(readVerifiedFile(licensePath, context.directories, context.files, "unsafe_path"), "invalid_content_license"));
+            parseContentLicense(decodeUtf8(readVerifiedFile(licensePath, context.directories, context.files, "unsafe_path", MAX_CONTENT_LICENSE_BYTES), "invalid_content_license"));
         }
         verifyDirectories(context.directories, "unsafe_path");
         verifyFiles(context.files, "unsafe_path");

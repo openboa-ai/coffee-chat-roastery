@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readdirSync, realpathSync } from "node:fs";
+import { lstatSync, opendirSync, realpathSync } from "node:fs";
 import { isIP } from "node:net";
 import { basename, relative, resolve, sep } from "node:path";
 import { TextDecoder } from "node:util";
@@ -27,6 +27,13 @@ const UTF8_DECODER = new TextDecoder("utf-8", {
   fatal: true,
   ignoreBOM: true,
 });
+const MAX_ROASTERY_JSON_BYTES = 64 * 1024;
+const MAX_INDEX_BYTES = 256 * 1024;
+const MAX_CONTENT_LICENSE_BYTES = 8 * 1024;
+const MAX_BEAN_BYTES = 256 * 1024;
+const MAX_BEANS = 1024;
+const MAX_TOTAL_BEAN_BYTES = 8 * 1024 * 1024;
+const MAX_ORIGINS_PER_BEAN = 64;
 const SPECIAL_USE_DNS_TLDS = new Set([
   "alt",
   "arpa",
@@ -127,12 +134,13 @@ function readJson(
   files: FileIdentity[],
   keys: string[],
   code: string,
+  maxBytes: number,
 ): { document: Record<string, unknown>; source: string } {
   let source: string;
   let parsed: unknown;
   try {
     source = decodeUtf8(
-      readVerifiedFile(path, directories, files, "unsafe_path"),
+      readVerifiedFile(path, directories, files, "unsafe_path", maxBytes),
       code,
     );
     parsed = JSON.parse(source);
@@ -264,7 +272,13 @@ function parseBean(
   directories: DirectoryIdentity[],
   files: FileIdentity[],
 ): { content: Buffer; id: string } {
-  const content = readVerifiedFile(path, directories, files, "unsafe_path");
+  const content = readVerifiedFile(
+    path,
+    directories,
+    files,
+    "unsafe_path",
+    MAX_BEAN_BYTES,
+  );
   const source = decodeUtf8(content, "invalid_bean");
   if (!source.startsWith("---\n")) fail("invalid_bean");
   const end = source.indexOf("\n---\n", 4);
@@ -278,6 +292,7 @@ function parseBean(
   if (header.length > 0) {
     if (header.shift() !== "origins:" || header.length === 0)
       fail("invalid_bean");
+    if (header.length > MAX_ORIGINS_PER_BEAN) fail("resource_limit_exceeded");
     const origins = new Set<string>();
     for (const line of header) {
       const origin = line.slice(4);
@@ -336,21 +351,37 @@ function scanBeans(context: RoasteryContext): IndexEntry[] {
   );
   context.directories.push(beansDirectory);
   const ids = new Set<string>();
-  const entries = readdirSync(directory, { withFileTypes: true });
   const beans: IndexEntry[] = [];
-  for (const entry of entries) {
-    const path = resolve(directory, entry.name);
-    const stat = lstatSync(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_path");
-    safeChild(context.root, path);
-    if (!entry.name.endsWith(".md")) fail("invalid_bean_path");
-    const bean = parseBean(path, context.directories, context.files);
-    if (ids.has(bean.id)) fail("duplicate_bean_id");
-    ids.add(bean.id);
-    beans.push({
-      id: bean.id,
-      digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
-    });
+  let totalBeanBytes = 0;
+  const handle = opendirSync(directory);
+  let entryCount = 0;
+  try {
+    for (
+      let entry = handle.readSync();
+      entry !== null;
+      entry = handle.readSync()
+    ) {
+      entryCount += 1;
+      if (entryCount > MAX_BEANS) fail("resource_limit_exceeded");
+      const path = resolve(directory, entry.name);
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_path");
+      safeChild(context.root, path);
+      if (!entry.name.endsWith(".md")) fail("invalid_bean_path");
+      const bean = parseBean(path, context.directories, context.files);
+      totalBeanBytes += bean.content.length;
+      if (totalBeanBytes > MAX_TOTAL_BEAN_BYTES) {
+        fail("resource_limit_exceeded");
+      }
+      if (ids.has(bean.id)) fail("duplicate_bean_id");
+      ids.add(bean.id);
+      beans.push({
+        id: bean.id,
+        digest: `sha256:${createHash("sha256").update(bean.content).digest("hex")}`,
+      });
+    }
+  } finally {
+    handle.closeSync();
   }
   verifyDirectories(context.directories, "unsafe_path");
   verifyFiles(context.files, "unsafe_path");
@@ -384,6 +415,7 @@ export function checkIndex({ root }: { root: string }): IndexCheckResult {
         context.directories,
         context.files,
         "unsafe_path",
+        MAX_INDEX_BYTES,
       ).toString("utf8") !== projected
     ) {
       fail("stale_index");
@@ -416,6 +448,7 @@ export function validate({
       context.files,
       ["contract", "repository"],
       "invalid_roastery",
+      MAX_ROASTERY_JSON_BYTES,
     ).document;
     const repository = normalizeRepository(manifest.repository);
     const actualContract = contractPin(manifest.contract);
@@ -436,6 +469,7 @@ export function validate({
       context.files,
       ["beans"],
       "invalid_index",
+      MAX_INDEX_BYTES,
     );
     if (
       !Array.isArray(index.document.beans) ||
@@ -479,6 +513,7 @@ export function validate({
             context.directories,
             context.files,
             "unsafe_path",
+            MAX_CONTENT_LICENSE_BYTES,
           ),
           "invalid_content_license",
         ),

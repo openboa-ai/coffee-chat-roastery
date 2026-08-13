@@ -1,11 +1,7 @@
 name: Roastery CodeQL
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-  merge_group:
 
 permissions: {}
 
@@ -13,6 +9,7 @@ jobs:
   analyze:
     name: Roastery CodeQL JavaScript-TypeScript
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
       actions: read

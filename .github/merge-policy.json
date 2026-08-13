@@ -2,8 +2,10 @@
   "repository_role": "roastery",
   "merge_method": "squash",
   "auto_merge": "github-native",
+  "merge_queue": false,
   "required_events": ["pull_request"],
   "eligible_author_associations": ["OWNER", "MEMBER"],
+  "eligible_bot_logins": ["dependabot[bot]"],
   "review_policy": {
     "required_approvals": 0,
     "code_owner_reviews_required": false
@@ -21,21 +23,28 @@
     {
       "context": "Secret boundary",
       "integration_id": 15368
+    },
+    {
+      "context": "Roastery CodeQL JavaScript-TypeScript",
+      "integration_id": 15368
     }
   ],
   "protected_paths": [
     "/.github/**",
+    "/.githooks/**",
+    "/.gitleaksignore",
+    "/.gitleaks.toml",
     "/AGENTS.md",
     "/CODEOWNERS",
     "/LICENSE",
     "/SECURITY.md",
-    "/package.json",
-    "/package-lock.json",
-    "/tsconfig.json",
-    "/tsconfig.build.json",
+    "/dist/**",
     "/scripts/**",
-    "/contract/**",
     "/src/**",
-    "/tests/**"
+    "/tsconfig.build.json",
+    "/tsconfig.json",
+    "/contract/**",
+    "/roastery/CONTENT_LICENSE.md",
+    "/roastery/roastery.json"
   ]
 }
