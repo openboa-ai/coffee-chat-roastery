@@ -128,6 +128,17 @@ test("rejects a future workflow even when it is read-only", async () => {
   );
 });
 
+test("rejects a future workflow using the yaml extension", async () => {
+  await expectRejected(
+    (fixture) =>
+      writeFile(
+        join(fixture, ".github/workflows/unreviewed.yaml"),
+        "name: Unreviewed\non:\n  pull_request:\npermissions:\n  contents: write\njobs:\n  unreviewed:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n",
+      ),
+    /workflow set/u,
+  );
+});
+
 test("rejects an extra pull_request_target trigger", async () => {
   await expectRejected(
     (fixture) =>
@@ -150,8 +161,48 @@ test("rejects a weakened candidate author gate", async () => {
         "OWNER|MEMBER",
         "CONTRIBUTOR",
       ),
-    /OWNER\|MEMBER author gate/u,
+    /author eligibility job contract/u,
   );
+});
+
+test("rejects removing the exact Dependabot identity", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        '              test "$PR_AUTHOR" = "dependabot[bot]"\n',
+        "              exit 0\n",
+      ),
+    /author eligibility job contract/u,
+  );
+});
+
+test("rejects disabling the author eligibility job", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "    name: Roastery author eligibility\n",
+        "    name: Roastery author eligibility\n    if: ${{ false }}\n",
+      ),
+    /author eligibility job contract/u,
+  );
+});
+
+test("checked-in author gates admit Dependabot without broadening contributors", async () => {
+  const quality = await readFile(
+    join(repositoryRoot, ".github/workflows/quality.yml"),
+    "utf8",
+  );
+  const boundary = await readFile(
+    join(repositoryRoot, ".github/workflows/secret-boundary.yml"),
+    "utf8",
+  );
+  assert.match(quality, /dependabot\[bot\]/u);
+  assert.match(boundary, /dependabot\[bot\]/u);
+  assert.doesNotMatch(quality, /COLLABORATOR|CONTRIBUTOR/u);
 });
 
 test("rejects a missing bounded job timeout", async () => {
@@ -190,6 +241,51 @@ test("rejects an inexact merge-group reference", async () => {
         "${{ github.event.merge_group.base_ref }}",
       ),
     /exact merge-group refs/u,
+  );
+});
+
+test("rejects a changed required-check integration identity", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/merge-policy.json",
+        '"integration_id": 15368',
+        '"integration_id": 1',
+      ),
+    /exact required checks/u,
+  );
+});
+
+test("checked-in CI proves shipped dist is reproducible", async () => {
+  const policy = JSON.parse(
+    await readFile(join(repositoryRoot, ".github/merge-policy.json"), "utf8"),
+  );
+  const packageJson = JSON.parse(
+    await readFile(join(repositoryRoot, "package.json"), "utf8"),
+  );
+  const quality = await readFile(
+    join(repositoryRoot, ".github/workflows/quality.yml"),
+    "utf8",
+  );
+  assert.equal(
+    packageJson.scripts["dist:check"],
+    "npm run build && git diff --exit-code -- dist",
+  );
+  assert.match(quality, /npm run dist:check/u);
+  assert.ok(policy.protected_paths.includes("/roastery/roastery.json"));
+});
+
+test("rejects removal of the canonical contract from sensitive paths", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/merge-policy.json",
+        '    "/contract/**",\n',
+        "",
+      ),
+    /exact protected paths/u,
   );
 });
 

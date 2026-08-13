@@ -26,9 +26,11 @@ targets the earlier squash-merged contract commit, avoiding self-reference.
   credential, persistence, or policy authority.
 - Every substantive change uses a pull request, strong required CI, and
   GitHub-native squash auto-merge. Run `npm run format:check`,
-  `npm run typecheck`, `npm run build`, `npm run repository:check`,
+  `npm run typecheck`, `npm run dist:check`, `npm run repository:check`,
   `npm run smoke`, `npm run ci:policy`, and `npm run package:check` before
   enabling auto-merge.
+- Candidate workflow gates admit organization `OWNER|MEMBER` authors and the
+  exact GitHub identity `dependabot[bot]`; never broaden this to contributors.
 - Accurately mark in the pull request whether it changes a sensitive path:
   workflow or repository policy, `AGENTS.md`, `CODEOWNERS`, licenses,
   `SECURITY.md`, package controls, TypeScript controls, scripts, contracts,
@@ -40,5 +42,6 @@ targets the earlier squash-merged contract commit, avoiding self-reference.
 - Contract changes and seed changes must remain separate pull requests. The seed
   may pin only the exact protected contract commit and reproducible bundle
   digest.
-- Run the deterministic format, type, build, smoke, package, and policy commands
-  for changed surfaces. Never describe deferred behavior as ready.
+- Run the deterministic format, type, reproducible-dist, smoke, package, and
+  policy commands for changed surfaces. Never describe deferred behavior as
+  ready.

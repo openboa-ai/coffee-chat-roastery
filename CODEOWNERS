@@ -1,5 +1,8 @@
 # Ownership routing only; repository rules require zero human approvals.
 /.github/** @openboa
+/.githooks/** @openboa
+/.gitleaksignore @openboa
+/.gitleaks.toml @openboa
 /AGENTS.md @openboa
 /CODEOWNERS @openboa
 /LICENSE @openboa
@@ -11,6 +14,7 @@
 /scripts/** @openboa
 /contract/** @openboa
 /roastery/CONTENT_LICENSE.md @openboa
+/roastery/roastery.json @openboa
 /src/cli.ts @openboa
 /src/index.ts @openboa
 /tests/** @openboa

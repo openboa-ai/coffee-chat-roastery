@@ -18,7 +18,7 @@ repository's implementation tests.
 ```sh
 npm run format:check
 npm run typecheck
-npm run build
+npm run dist:check
 npm run repository:check
 npm run smoke
 npm run package:check

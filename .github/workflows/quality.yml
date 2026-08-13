@@ -19,11 +19,13 @@ jobs:
           AUTHOR_ASSOCIATION:
             ${{ github.event.pull_request.author_association }}
           EVENT_NAME: ${{ github.event_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           case "$EVENT_NAME" in
             merge_group) exit 0 ;;
             pull_request)
-              case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+              case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+              test "$PR_AUTHOR" = "dependabot[bot]"
               ;;
             *) exit 1 ;;
           esac
@@ -62,7 +64,7 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npm run format:check
       - run: npm run typecheck
-      - run: npm run build
+      - run: npm run dist:check
       - run: npm run repository:check
       - run: npm run smoke
       - run: npm run package:check

@@ -153,6 +153,7 @@ test("policy retains lean workflows and native squash authority", () => {
     readFileSync(join(root, ".github/merge-policy.json"), "utf8"),
   );
   assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
+  assert.deepEqual(policy.eligible_bot_logins, ["dependabot[bot]"]);
   assert.equal(policy.merge_method, "squash");
   assert.equal(policy.auto_merge, "github-native");
   assert.equal(policy.required_approvals, 0);

@@ -26,7 +26,7 @@ const candidateWorkflows = new Set(["codeql.yml", "policy.yml", "quality.yml"]);
 const requiredCommands = [
   "npm run format:check",
   "npm run typecheck",
-  "npm run build",
+  "npm run dist:check",
   "npm run repository:check",
   "npm run smoke",
   "npm run package:check",
@@ -35,7 +35,8 @@ const requiredCommands = [
 const authorEligibilityGate = `case "$EVENT_NAME" in
   merge_group) exit 0 ;;
   pull_request)
-    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+    test "$PR_AUTHOR" = "dependabot[bot]"
     ;;
   *) exit 1 ;;
 esac
@@ -244,11 +245,26 @@ function validateQuality(workflow) {
   }
   if (
     !isRecord(eligibility) ||
+    !hasExactKeys(eligibility, [
+      "name",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     eligibility.name !== "Roastery author eligibility" ||
+    eligibility["runs-on"] !== "ubuntu-24.04" ||
     !equal(eligibility.permissions, { contents: "read" }) ||
-    !stepRuns(getSteps(eligibility), authorEligibilityGate)
+    getSteps(eligibility).length !== 1 ||
+    getSteps(eligibility)[0]?.name !== "Decide author eligibility" ||
+    !equal(getSteps(eligibility)[0]?.env, {
+      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+      EVENT_NAME: "${{ github.event_name }}",
+      PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
+    }) ||
+    getSteps(eligibility)[0]?.run !== authorEligibilityGate
   ) {
-    fail("quality.yml: OWNER|MEMBER author gate");
+    fail("quality.yml: author eligibility job contract");
   }
   if (
     !isRecord(quality) ||
@@ -319,7 +335,7 @@ function validateSecretBoundary(workflow) {
     boundary.name !== "Secret boundary" ||
     boundary["runs-on"] !== "ubuntu-latest" ||
     boundary.if !==
-      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER'"
+      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.user.login == 'dependabot[bot]'"
   ) {
     fail("secret-boundary.yml: trusted author boundary");
   }
@@ -445,26 +461,47 @@ function validateMergePolicy() {
     policy.auto_merge !== "github-native" ||
     policy.required_approvals !== 0 ||
     !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
+    !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
     !equal(policy.required_events, ["pull_request", "merge_group"]) ||
     policy.review_policy?.required_approvals !== 0 ||
     policy.review_policy?.code_owner_reviews_required !== false
   ) {
     fail("merge policy is not zero-approval GitHub-native squash");
   }
-  const contexts = policy.required_checks?.map(({ context }) => context) ?? [];
-  for (const context of [
-    "Roastery required",
-    "Roastery dependency review",
-    "Secret boundary",
-    "Roastery CodeQL JavaScript-TypeScript",
-  ]) {
-    if (!contexts.includes(context))
-      fail(`merge policy must require ${context}`);
+  if (
+    !equal(policy.required_checks, [
+      { context: "Roastery required", integration_id: 15368 },
+      { context: "Roastery dependency review", integration_id: 15368 },
+      { context: "Secret boundary", integration_id: 15368 },
+      {
+        context: "Roastery CodeQL JavaScript-TypeScript",
+        integration_id: 15368,
+      },
+    ])
+  ) {
+    fail("merge policy must retain exact required checks");
+  }
+  if (
+    !equal(policy.protected_paths, [
+      "/.github/**",
+      "/.githooks/**",
+      "/.gitleaksignore",
+      "/.gitleaks.toml",
+      "/AGENTS.md",
+      "/CODEOWNERS",
+      "/LICENSE",
+      "/SECURITY.md",
+      "/contract/**",
+      "/roastery/CONTENT_LICENSE.md",
+      "/roastery/roastery.json",
+    ])
+  ) {
+    fail("merge policy must retain exact protected paths");
   }
 }
 
 const discovered = readdirSync(workflowRoot)
-  .filter((name) => name.endsWith(".yml"))
+  .filter((name) => /\.ya?ml$/u.test(name))
   .sort();
 if (!equal(discovered, workflowNames)) fail("workflow set must be exact");
 
@@ -502,6 +539,12 @@ if (
   "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
+}
+if (
+  packageJson.scripts?.["dist:check"] !==
+  "npm run build && git diff --exit-code -- dist"
+) {
+  fail("package command must verify reproducible dist");
 }
 validateDependabot();
 validateMergePolicy();
