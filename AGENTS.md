@@ -41,16 +41,16 @@ targets the earlier squash-merged contract commit, avoiding self-reference.
   compatible dependency maintenance remain on the required-CI auto-merge path.
 - Do not create custom write-token merge automation. Enable only GitHub-native
   squash auto-merge after the required checks pass.
-- Required CI authenticates the exact parser manifest and lock with built-in
-  Node.js code, installs that integrity-pinned parser under
-  `.github/policy-parser`, audits that dependency tree independently, and only
-  then loads it to enforce structural policy before installing root
-  dependencies. Treat the bootstrap, manifest, lockfile, checker, and workflow
-  ordering as one sensitive boundary.
-- After a clean checkout, run `npm ci --ignore-scripts` for root dependencies;
-  `npm run smoke` and `npm run ci:policy` authenticate and install the isolated
-  parser through the exact `policy:install` command before loading the checker
-  or fixtures.
+- The organization-required workflow in `openboa-ai/.github` is the
+  authorization boundary. It runs this base commit's checker and parser against
+  the pull request as inert data. Candidate and local package scripts are only
+  post-trust quality checks.
+- On an author-controlled checkout, install the isolated parser explicitly with
+  `node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser`
+  before `npm run smoke` or `npm run ci:policy`. Never use candidate bootstrap
+  code to decide whether an untrusted branch is safe.
+- Reject root `.npmrc`, parser `.npmrc`, and `npm-shrinkwrap.json`; they are
+  unsupported competing install authorities.
 - Root dependency updates stay on the GitHub-native path only when package
   names, exact versions, npm registry tarball identities, and sha512 lockfile
   integrities pass that protected policy.

@@ -2,12 +2,21 @@ name: Roastery CodeQL
 
 on:
   pull_request:
+  pull_request_target:
 
 permissions: {}
 
 jobs:
   analyze:
     name: Roastery CodeQL JavaScript-TypeScript
+    if: >-
+      ((github.event.pull_request.author_association == 'OWNER' ||
+      github.event.pull_request.author_association == 'MEMBER') && github.actor
+      == github.event.pull_request.user.login &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login
+      == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name ==
+      github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -18,6 +27,8 @@ jobs:
       - name: Check out repository without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Initialize CodeQL
         uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3

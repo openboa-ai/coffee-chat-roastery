@@ -5,10 +5,12 @@
 /.gitleaks.toml @openboa
 /AGENTS.md @openboa
 /CODEOWNERS @openboa
+/.npmrc @openboa-ai/security-maintainers
 /LICENSE @openboa
 /SECURITY.md @openboa
 /package.json @openboa
 /package-lock.json @openboa
+/npm-shrinkwrap.json @openboa-ai/security-maintainers
 /tsconfig.json @openboa
 /tsconfig.build.json @openboa
 /scripts/** @openboa
