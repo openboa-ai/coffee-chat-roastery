@@ -10,6 +10,7 @@ jobs:
   eligibility:
     name: Roastery author eligibility
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -31,6 +32,7 @@ jobs:
     name: Roastery deterministic quality
     needs: eligibility
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -56,7 +58,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=moderate
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run build
@@ -72,6 +75,7 @@ jobs:
       - eligibility
       - quality
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:

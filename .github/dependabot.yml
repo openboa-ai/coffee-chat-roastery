@@ -13,10 +13,17 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
-      versions:
+      production:
         applies-to: version-updates
-        patterns:
-          - "*"
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -32,5 +39,9 @@ updates:
           - "*"
       versions:
         applies-to: version-updates
+        update-types: [minor, patch]
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]

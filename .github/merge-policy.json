@@ -2,7 +2,7 @@
   "repository_role": "roastery",
   "merge_method": "squash",
   "auto_merge": "github-native",
-  "required_events": ["pull_request"],
+  "required_events": ["pull_request", "merge_group"],
   "eligible_author_associations": ["OWNER", "MEMBER"],
   "review_policy": {
     "required_approvals": 0,
@@ -20,6 +20,10 @@
     },
     {
       "context": "Secret boundary",
+      "integration_id": 15368
+    },
+    {
+      "context": "Roastery CodeQL JavaScript-TypeScript",
       "integration_id": 15368
     }
   ],
