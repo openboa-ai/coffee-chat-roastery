@@ -254,22 +254,31 @@ function validateMergePolicy() {
     !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
     !equal(policy.required_events, ["pull_request"]) ||
     policy.review_policy?.required_approvals !== 0 ||
-    policy.review_policy?.code_owner_reviews_required !== false
+    policy.review_policy?.code_owner_reviews_required !== false ||
+    policy.review_policy?.sensitive_paths_use_protected_environment !== true
   ) {
     fail("merge policy is not zero-approval GitHub-native squash");
   }
   if (
     !equal(policy.required_checks, [
-      { context: "Roastery required", integration_id: 15368 },
-      { context: "Roastery dependency review", integration_id: 15368 },
-      { context: "Secret boundary", integration_id: 15368 },
       {
-        context: "Roastery CodeQL JavaScript-TypeScript",
+        context:
+          "OpenBoa Coffee trusted required / OpenBoa Coffee trusted required",
         integration_id: 15368,
       },
     ])
   ) {
     fail("merge policy must retain exact required checks");
+  }
+  if (
+    !equal(policy.sensitive_review, {
+      enforcement: "github_environment",
+      environment: "coffee-security",
+      required_approvals: 1,
+      prevent_self_review: false,
+    })
+  ) {
+    fail("merge policy must retain the protected Environment review");
   }
   if (
     !equal(policy.protected_paths, [
