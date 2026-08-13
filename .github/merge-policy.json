@@ -38,6 +38,8 @@
     "/CODEOWNERS",
     "/LICENSE",
     "/SECURITY.md",
+    "/.npmrc",
+    "/npm-shrinkwrap.json",
     "/dist/**",
     "/scripts/**",
     "/src/**",

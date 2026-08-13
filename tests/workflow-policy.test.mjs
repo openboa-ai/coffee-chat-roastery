@@ -132,6 +132,63 @@ test("rejects a competing parser shrinkwrap before loading code", async () => {
   );
 });
 
+test("trusted policy never loads the candidate parser installation", async () => {
+  await withFixture(
+    async (fixture) => {
+      const packageRoot = join(
+        fixture,
+        ".github/policy-parser/node_modules/yaml",
+      );
+      await rm(packageRoot, { force: true, recursive: true });
+      await mkdir(packageRoot, { recursive: true });
+      await writeFile(
+        join(packageRoot, "package.json"),
+        `${JSON.stringify({ name: "yaml", version: "2.9.0", main: "index.cjs" })}\n`,
+      );
+      await writeFile(
+        join(packageRoot, "index.cjs"),
+        `require("node:fs").writeFileSync(process.env.ROASTERY_POLICY_MARKER, "executed\\n"); throw new Error("candidate parser executed");\n`,
+      );
+    },
+    async (fixture) => {
+      const marker = join(
+        fixture,
+        "candidate-parser-executed-by-trusted-policy",
+      );
+      const result = await runChecker(fixture, {
+        env: { ROASTERY_POLICY_MARKER: marker },
+      });
+      assert.equal(result.status, 0, result.output);
+      assert.equal(
+        existsSync(marker),
+        false,
+        "trusted policy imported candidate-selected parser code",
+      );
+    },
+  );
+});
+
+test("rejects a root npm shrinkwrap before dependency installation", async () => {
+  await expectRejected(
+    (fixture) =>
+      writeFile(
+        join(fixture, "npm-shrinkwrap.json"),
+        `${JSON.stringify({ lockfileVersion: 3, packages: {} })}\n`,
+      ),
+    /root npm-shrinkwrap\.json must be absent/u,
+  );
+});
+
+test("rejects root and parser npm configuration before installation", async () => {
+  for (const path of [".npmrc", ".github/policy-parser/.npmrc"]) {
+    await expectRejected(
+      (fixture) =>
+        writeFile(join(fixture, path), "registry=https://attacker.invalid\n"),
+      /\.npmrc must be absent/u,
+    );
+  }
+});
+
 test("runs isolated structural policy before candidate dependencies and delegated scripts", async () => {
   const workflow = parse(
     await readFile(
@@ -165,19 +222,51 @@ test("runs isolated structural policy before candidate dependencies and delegate
   assert.match(checkerSource, /policy-bootstrap\.mjs/u);
 });
 
-test("standard local policy and smoke commands install the isolated parser", async () => {
+test("local verification never auto-bootstraps candidate policy code", async () => {
   const packageJson = JSON.parse(
     await readFile(join(repositoryRoot, "package.json"), "utf8"),
   );
+  assert.equal(Object.hasOwn(packageJson.scripts, "policy:install"), false);
+  assert.equal(packageJson.scripts.smoke, "node --test tests/*.test.mjs");
   assert.equal(
-    packageJson.scripts["policy:install"],
-    "node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser",
-  );
-  assert.match(packageJson.scripts.smoke, /^npm run policy:install && /u);
-  assert.match(
     packageJson.scripts["ci:policy"],
-    /^npm run policy:install && /u,
+    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   );
+  assert.doesNotMatch(JSON.stringify(packageJson.scripts), /policy-bootstrap/u);
+
+  const mergePolicy = JSON.parse(
+    await readFile(join(repositoryRoot, ".github/merge-policy.json"), "utf8"),
+  );
+  assert.ok(mergePolicy.protected_paths.includes("/npm-shrinkwrap.json"));
+  assert.ok(mergePolicy.protected_paths.includes("/.npmrc"));
+  assert.match(
+    await readFile(join(repositoryRoot, "CODEOWNERS"), "utf8"),
+    /^\/npm-shrinkwrap\.json /mu,
+  );
+  assert.match(
+    await readFile(join(repositoryRoot, "CODEOWNERS"), "utf8"),
+    /^\/\.npmrc /mu,
+  );
+});
+
+test("CodeQL transition analyzes candidate data from a trusted-base event", async () => {
+  const codeql = parse(
+    await readFile(
+      join(repositoryRoot, ".github/workflows/codeql.yml"),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(Object.keys(codeql.on).sort(), [
+    "pull_request",
+    "pull_request_target",
+  ]);
+  const checkout = codeql.jobs.analyze.steps[0];
+  assert.equal(
+    checkout.with.repository,
+    "${{ github.event.pull_request.head.repo.full_name }}",
+  );
+  assert.equal(checkout.with.ref, "${{ github.event.pull_request.head.sha }}");
+  assert.match(codeql.jobs.analyze.if, /github\.actor/u);
 });
 
 test("rejects a dependency lock redirected away from the npm registry", async () => {
@@ -713,7 +802,7 @@ test("rejects weakening the package policy command", async () => {
       replace(
         fixture,
         "package.json",
-        "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+        "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
         "node .github/ci-policy.mjs",
       ),
     /package command/u,

@@ -1,16 +1,28 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadPolicyParser } from "./policy-bootstrap.mjs";
 
-const root = resolve(
-  process.env.ROASTERY_CI_POLICY_ROOT ??
-    resolve(dirname(fileURLToPath(import.meta.url)), ".."),
-);
-const { parseDocument } = loadPolicyParser(root);
+const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(process.env.ROASTERY_CI_POLICY_ROOT ?? controlRoot);
+const { parseDocument } = loadPolicyParser(controlRoot);
 const workflowRoot = resolve(root, ".github/workflows");
 const failures = [];
+if (existsSync(resolve(root, ".npmrc"))) {
+  failures.push("root .npmrc must be absent");
+}
+if (existsSync(resolve(root, ".github/policy-parser/.npmrc"))) {
+  failures.push("isolated policy parser .npmrc must be absent before install");
+}
+if (existsSync(resolve(root, "npm-shrinkwrap.json"))) {
+  failures.push("root npm-shrinkwrap.json must be absent");
+}
+if (existsSync(resolve(root, ".github/policy-parser/npm-shrinkwrap.json"))) {
+  failures.push(
+    "isolated policy parser npm-shrinkwrap.json must be absent before loading",
+  );
+}
 const workflowNames = [
   "codeql.yml",
   "policy.yml",
@@ -24,7 +36,7 @@ const pinnedActions = new Set([
   "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3",
   "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3",
 ]);
-const candidateWorkflows = new Set(["codeql.yml", "policy.yml", "quality.yml"]);
+const candidateWorkflows = new Set(["policy.yml", "quality.yml"]);
 const requiredCommands = [
   "npm run format:check",
   "npm run typecheck",
@@ -291,18 +303,28 @@ function validateCandidateWorkflow(name, workflow) {
 }
 
 function validateCodeql(workflow) {
+  const triggers = Object.keys(workflow.on ?? {}).sort();
+  if (
+    !equal(triggers, ["pull_request", "pull_request_target"]) &&
+    !equal(triggers, ["pull_request_target"])
+  ) {
+    fail("codeql.yml: trusted-base triggers");
+  }
   const analyze = workflow.jobs?.analyze;
   if (!hasExactKeys(workflow.jobs, ["analyze"])) fail("codeql.yml: exact jobs");
   if (
     !isRecord(analyze) ||
     !hasExactKeys(analyze, [
       "name",
+      "if",
       "runs-on",
       "timeout-minutes",
       "permissions",
       "steps",
     ]) ||
     analyze.name !== "Roastery CodeQL JavaScript-TypeScript" ||
+    analyze.if !==
+      "((github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') && github.actor == github.event.pull_request.user.login && github.event.pull_request.head.repo.full_name == github.repository) || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)" ||
     analyze["runs-on"] !== "ubuntu-24.04" ||
     !equal(analyze.permissions, {
       contents: "read",
@@ -318,7 +340,11 @@ function validateCodeql(workflow) {
       {
         name: "Check out repository without persisted credentials",
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        with: { "persist-credentials": false },
+        with: {
+          repository: "${{ github.event.pull_request.head.repo.full_name }}",
+          ref: "${{ github.event.pull_request.head.sha }}",
+          "persist-credentials": false,
+        },
       },
       {
         name: "Initialize CodeQL",
@@ -705,6 +731,8 @@ function validateMergePolicy() {
       "/CODEOWNERS",
       "/LICENSE",
       "/SECURITY.md",
+      "/.npmrc",
+      "/npm-shrinkwrap.json",
       "/dist/**",
       "/scripts/**",
       "/src/**",
@@ -756,23 +784,21 @@ const packageJson = JSON.parse(
 const expectedPackageScripts = {
   build: "node scripts/build.mjs",
   "ci:policy":
-    "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dist:check": "npm run build && git diff --exit-code -- dist",
   "format:check": "prettier --check .",
   "hooks:install": "git config core.hooksPath .githooks",
   "package:check": "node scripts/check-package.mjs",
   "security:scan": "scripts/security-scan.sh",
   "repository:check": "node scripts/check-repository-state.mjs --root .",
-  "policy:install":
-    "node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser",
-  smoke: "npm run policy:install && node --test tests/*.test.mjs",
+  smoke: "node --test tests/*.test.mjs",
   test: "npm run smoke",
   typecheck: "tsc --noEmit",
   prepack: "npm run build",
 };
 if (
   packageJson.scripts?.["ci:policy"] !==
-  "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
+  "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
 }
