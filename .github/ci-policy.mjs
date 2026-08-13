@@ -439,6 +439,9 @@ function validateQuality(workflow) {
       },
       { run: "npm ci --ignore-scripts --prefix .github/policy-parser" },
       {
+        run: "npm audit --audit-level=moderate --prefix .github/policy-parser",
+      },
+      {
         name: "Enforce repository policy before candidate dependencies",
         run: "node .github/ci-policy.mjs",
       },
