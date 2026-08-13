@@ -148,12 +148,16 @@ test("runs isolated structural policy before candidate dependencies and delegate
   const parserAuthenticationIndex = runs.indexOf(
     "node .github/policy-bootstrap.mjs",
   );
+  const parserAuditIndex = runs.indexOf(
+    "npm audit --audit-level=moderate --prefix .github/policy-parser",
+  );
   const installIndex = runs.indexOf("npm ci --ignore-scripts");
   const policyIndex = runs.indexOf("node .github/ci-policy.mjs");
   const delegatedIndex = runs.findIndex((run) => run.startsWith("npm run "));
 
   assert.equal(parserInstallIndex, parserAuthenticationIndex + 1);
-  assert.equal(policyIndex, parserInstallIndex + 1);
+  assert.equal(parserAuditIndex, parserInstallIndex + 1);
+  assert.equal(policyIndex, parserAuditIndex + 1);
   assert.ok(policyIndex < installIndex);
   assert.ok(policyIndex < delegatedIndex);
   const checkerSource = await readFile(checker, "utf8");
@@ -667,6 +671,19 @@ test("rejects loading the isolated parser before lock authentication", async () 
         fixture,
         ".github/workflows/quality.yml",
         "      - name: Authenticate the isolated policy parser lock\n        run: node .github/policy-bootstrap.mjs\n",
+        "",
+      ),
+    /exact fail-closed candidate quality steps/u,
+  );
+});
+
+test("rejects removing the isolated parser dependency audit", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "      - run: npm audit --audit-level=moderate --prefix .github/policy-parser\n",
         "",
       ),
     /exact fail-closed candidate quality steps/u,
