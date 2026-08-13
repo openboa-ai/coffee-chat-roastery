@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { promisify } from "node:util";
-import { parse } from "yaml";
+
+const policyRequire = createRequire(
+  new URL("../.github/policy-parser/package.json", import.meta.url),
+);
+const { parse } = policyRequire("yaml");
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -19,6 +24,10 @@ async function withFixture(mutate, check) {
     await cp(
       join(repositoryRoot, "package.json"),
       join(fixture, "package.json"),
+    );
+    await cp(
+      join(repositoryRoot, "package-lock.json"),
+      join(fixture, "package-lock.json"),
     );
     await cp(join(repositoryRoot, ".github"), join(fixture, ".github"), {
       recursive: true,
@@ -66,7 +75,7 @@ test("accepts the checked-in workflow policy", async () => {
   assert.equal(result.status, 0, result.output);
 });
 
-test("runs structural policy directly before delegated package scripts", async () => {
+test("runs isolated structural policy before candidate dependencies and delegated scripts", async () => {
   const workflow = parse(
     await readFile(
       join(repositoryRoot, ".github/workflows/quality.yml"),
@@ -76,12 +85,59 @@ test("runs structural policy directly before delegated package scripts", async (
   const runs = workflow.jobs.quality.steps
     .map((step) => step.run)
     .filter((run) => typeof run === "string");
+  const parserInstallIndex = runs.indexOf(
+    "npm ci --ignore-scripts --prefix .github/policy-parser",
+  );
   const installIndex = runs.indexOf("npm ci --ignore-scripts");
   const policyIndex = runs.indexOf("node .github/ci-policy.mjs");
   const delegatedIndex = runs.findIndex((run) => run.startsWith("npm run "));
 
-  assert.equal(policyIndex, installIndex + 1);
+  assert.equal(policyIndex, parserInstallIndex + 1);
+  assert.ok(policyIndex < installIndex);
   assert.ok(policyIndex < delegatedIndex);
+  const checkerSource = await readFile(checker, "utf8");
+  assert.doesNotMatch(checkerSource, /from ["']yaml["']/u);
+  assert.match(checkerSource, /policy-parser\/package\.json/u);
+});
+
+test("rejects a dependency lock redirected away from the npm registry", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        "package-lock.json",
+        "https://registry.npmjs.org/prettier/-/prettier-3.9.6.tgz",
+        "https://attacker.invalid/prettier-3.9.6.tgz",
+      ),
+    /package lock must preserve registry identity and integrity/u,
+  );
+});
+
+test("rejects dependency aliases and an altered isolated parser integrity", async () => {
+  await expectRejected(async (fixture) => {
+    await replace(
+      fixture,
+      "package.json",
+      '"prettier": "3.9.6"',
+      '"prettier": "npm:attacker@1.0.0"',
+    );
+    await replace(
+      fixture,
+      ".github/policy-parser/package-lock.json",
+      "sha512-2AvhNX3m",
+      "sha512-0AvhNX3m",
+    );
+  }, /approved dependency contract|isolated policy parser/u);
+});
+
+test("rejects extra lifecycle hooks and changed publication metadata", async () => {
+  await expectRejected(async (fixture) => {
+    const target = join(fixture, "package.json");
+    const packageJson = JSON.parse(await readFile(target, "utf8"));
+    packageJson.scripts.install = "node attacker.mjs";
+    packageJson.exports["."].import = "./dist/attacker.js";
+    await writeFile(target, `${JSON.stringify(packageJson, null, 2)}\n`);
+  }, /package execution and publication contract/u);
 });
 
 test("owner and member gates bind actor, author, and head repository", async () => {
@@ -521,7 +577,7 @@ test("rejects removal of the direct pre-delegation policy gate", async () => {
       replace(
         fixture,
         ".github/workflows/quality.yml",
-        "      - name: Enforce repository policy before delegated scripts\n        run: node .github/ci-policy.mjs\n",
+        "      - name: Enforce repository policy before candidate dependencies\n        run: node .github/ci-policy.mjs\n",
         "",
       ),
     /exact fail-closed candidate quality steps/u,
