@@ -32,7 +32,7 @@
     "package:check": "node scripts/check-package.mjs",
     "security:scan": "scripts/security-scan.sh",
     "repository:check": "node scripts/check-repository-state.mjs --root .",
-    "policy:install": "npm ci --ignore-scripts --prefix .github/policy-parser",
+    "policy:install": "node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser",
     "smoke": "npm run policy:install && node --test tests/*.test.mjs",
     "test": "npm run smoke",
     "typecheck": "tsc --noEmit",

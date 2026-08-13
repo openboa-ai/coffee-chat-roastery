@@ -1,17 +1,14 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const policyRequire = createRequire(
-  new URL("./policy-parser/package.json", import.meta.url),
-);
-const { parseDocument } = policyRequire("yaml");
+import { loadPolicyParser } from "./policy-bootstrap.mjs";
 
 const root = resolve(
   process.env.ROASTERY_CI_POLICY_ROOT ??
     resolve(dirname(fileURLToPath(import.meta.url)), ".."),
 );
+const { parseDocument } = loadPolicyParser(root);
 const workflowRoot = resolve(root, ".github/workflows");
 const failures = [];
 const workflowNames = [
@@ -180,52 +177,6 @@ function validatePackageLock(packageJson, allowedDevDependencies) {
       fail("package lock must preserve registry identity and integrity");
       return;
     }
-  }
-}
-
-function validatePolicyParserContract(expectedName) {
-  const parserRoot = resolve(root, ".github/policy-parser");
-  let packageJson;
-  let lock;
-  try {
-    packageJson = JSON.parse(
-      readFileSync(resolve(parserRoot, "package.json"), "utf8"),
-    );
-    lock = JSON.parse(
-      readFileSync(resolve(parserRoot, "package-lock.json"), "utf8"),
-    );
-  } catch (error) {
-    fail(
-      `isolated policy parser must parse: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return;
-  }
-  const expectedPackage = {
-    name: expectedName,
-    private: true,
-    version: "1.0.0",
-    dependencies: { yaml: "2.9.0" },
-  };
-  const yaml = lock?.packages?.["node_modules/yaml"];
-  if (
-    !equal(packageJson, expectedPackage) ||
-    lock.name !== expectedName ||
-    lock.version !== "1.0.0" ||
-    lock.lockfileVersion !== 3 ||
-    lock.requires !== true ||
-    !equal(lock.packages?.[""], {
-      name: expectedName,
-      version: "1.0.0",
-      dependencies: { yaml: "2.9.0" },
-    }) ||
-    yaml?.version !== "2.9.0" ||
-    yaml?.resolved !== "https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz" ||
-    yaml?.integrity !==
-      "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA=="
-  ) {
-    fail("isolated policy parser must remain exact and integrity-pinned");
   }
 }
 
@@ -481,6 +432,10 @@ function validateQuality(workflow) {
         name: "Set up Node.js",
         uses: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
         with: { "node-version": 24, cache: "npm" },
+      },
+      {
+        name: "Authenticate the isolated policy parser lock",
+        run: "node .github/policy-bootstrap.mjs",
       },
       { run: "npm ci --ignore-scripts --prefix .github/policy-parser" },
       {
@@ -805,7 +760,8 @@ const expectedPackageScripts = {
   "package:check": "node scripts/check-package.mjs",
   "security:scan": "scripts/security-scan.sh",
   "repository:check": "node scripts/check-repository-state.mjs --root .",
-  "policy:install": "npm ci --ignore-scripts --prefix .github/policy-parser",
+  "policy:install":
+    "node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser",
   smoke: "npm run policy:install && node --test tests/*.test.mjs",
   test: "npm run smoke",
   typecheck: "tsc --noEmit",
@@ -852,7 +808,6 @@ if (
   );
 }
 validatePackageLock(packageJson, ["@types/node", "prettier", "typescript"]);
-validatePolicyParserContract("@openboa-ai/roastery-policy-parser");
 validateDependabot();
 validateMergePolicy();
 
