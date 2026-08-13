@@ -148,7 +148,7 @@ test("CLI rejects oversized repository and contract inputs", () => {
   }
 });
 
-test("policy retains lean workflows and native squash authority", () => {
+test("policy retains the central trusted wrapper and native squash authority", () => {
   const policy = JSON.parse(
     readFileSync(join(root, ".github/merge-policy.json"), "utf8"),
   );
@@ -159,27 +159,15 @@ test("policy retains lean workflows and native squash authority", () => {
   assert.equal(policy.merge_queue, false);
   assert.deepEqual(policy.required_events, ["pull_request"]);
   assert.equal(policy.required_approvals, 0);
-  assert.ok(
-    policy.required_checks.some(({ context }) => context === "Secret boundary"),
-  );
-
-  const workflows = ["quality.yml", "policy.yml", "codeql.yml"];
-  for (const workflow of workflows) {
-    const source = readFileSync(
-      join(root, ".github/workflows", workflow),
-      "utf8",
-    );
-    assert.match(source, /pull_request:/u);
-    assert.doesNotMatch(source, /merge_group:/u);
-  }
-  const boundary = readFileSync(
-    join(root, ".github/workflows/secret-boundary.yml"),
+  const wrapper = readFileSync(
+    join(root, ".github/workflows/trusted.yml"),
     "utf8",
   );
-  assert.match(boundary, /pull_request_target:/u);
-  assert.doesNotMatch(boundary, /merge_group:/u);
-  assert.match(boundary, /path: trusted/u);
-  assert.match(boundary, /path: candidate/u);
-  assert.match(boundary, /gitleaks dir/u);
-  assert.doesNotMatch(boundary, /npm |node |secrets\./u);
+  assert.match(wrapper, /pull_request_target:/u);
+  assert.match(
+    wrapper,
+    /uses: openboa-ai\/\.github\/\.github\/workflows\/coffee-trusted-gate\.yml@[0-9a-f]{40}/u,
+  );
+  assert.doesNotMatch(wrapper, /^\s*run:/mu);
+  assert.doesNotMatch(wrapper, /secrets\./u);
 });
