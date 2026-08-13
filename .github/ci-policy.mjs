@@ -33,14 +33,23 @@ const requiredCommands = [
   "npm run ci:policy",
 ];
 const authorEligibilityGate = `case "$EVENT_NAME" in
-  merge_group) exit 0 ;;
   pull_request)
     case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+    test "$ACTOR" = "dependabot[bot]"
     test "$PR_AUTHOR" = "dependabot[bot]"
+    test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
     ;;
   *) exit 1 ;;
 esac
 `;
+const authorEligibilityEnv = {
+  ACTOR: "${{ github.actor }}",
+  AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+  BASE_REPOSITORY: "${{ github.repository }}",
+  EVENT_NAME: "${{ github.event_name }}",
+  HEAD_REPOSITORY: "${{ github.event.pull_request.head.repo.full_name }}",
+  PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
+};
 
 function fail(message) {
   failures.push(message);
@@ -147,7 +156,7 @@ function validateActions(name, workflow) {
 }
 
 function validateCandidateWorkflow(name, workflow) {
-  if (!hasExactKeys(workflow.on, ["pull_request", "merge_group"])) {
+  if (!hasExactKeys(workflow.on, ["pull_request"])) {
     fail(`${name}: approved triggers`);
   }
   if (!hasExactKeys(workflow.permissions, [])) {
@@ -210,31 +219,21 @@ function validateDependencyReview(workflow) {
   ) {
     fail("policy.yml: dependency-review permissions");
   }
-  const expectedAction =
-    "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294";
-  const [pullRequest, mergeGroup] = getSteps(review);
-  for (const step of [pullRequest, mergeGroup]) {
-    if (
-      !isRecord(step) ||
-      step.uses !== expectedAction ||
-      step.with?.["fail-on-severity"] !== "moderate" ||
-      step.with?.["fail-on-scopes"] !== "runtime,development,unknown" ||
-      step.with?.["show-patched-versions"] !== true ||
-      step.with?.["comment-summary-in-pr"] !== "never"
-    ) {
-      fail("policy.yml: dependency-review inputs");
-      break;
-    }
-  }
   if (
-    pullRequest?.if !== "github.event_name == 'pull_request'" ||
-    mergeGroup?.if !== "github.event_name == 'merge_group'" ||
-    mergeGroup?.with?.["base-ref"] !==
-      "${{ github.event.merge_group.base_sha }}" ||
-    mergeGroup?.with?.["head-ref"] !==
-      "${{ github.event.merge_group.head_sha }}"
+    !equal(getSteps(review), [
+      {
+        name: "Review pull request dependencies",
+        uses: "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+        with: {
+          "fail-on-severity": "moderate",
+          "fail-on-scopes": "runtime,development,unknown",
+          "show-patched-versions": true,
+          "comment-summary-in-pr": "never",
+        },
+      },
+    ])
   ) {
-    fail("policy.yml: exact merge-group refs");
+    fail("policy.yml: dependency-review inputs");
   }
 }
 
@@ -243,6 +242,7 @@ function validateQuality(workflow) {
   if (!hasExactKeys(workflow.jobs, ["eligibility", "quality", "aggregate"])) {
     fail("quality.yml: exact jobs");
   }
+  const eligibilitySteps = getSteps(eligibility);
   if (
     !isRecord(eligibility) ||
     !hasExactKeys(eligibility, [
@@ -255,19 +255,25 @@ function validateQuality(workflow) {
     eligibility.name !== "Roastery author eligibility" ||
     eligibility["runs-on"] !== "ubuntu-24.04" ||
     !equal(eligibility.permissions, { contents: "read" }) ||
-    getSteps(eligibility).length !== 1 ||
-    getSteps(eligibility)[0]?.name !== "Decide author eligibility" ||
-    !equal(getSteps(eligibility)[0]?.env, {
-      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-      EVENT_NAME: "${{ github.event_name }}",
-      PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
-    }) ||
-    getSteps(eligibility)[0]?.run !== authorEligibilityGate
+    eligibilitySteps.length !== 1 ||
+    !equal(eligibilitySteps[0], {
+      name: "Decide author eligibility",
+      env: authorEligibilityEnv,
+      run: authorEligibilityGate,
+    })
   ) {
     fail("quality.yml: author eligibility job contract");
   }
   if (
     !isRecord(quality) ||
+    !hasExactKeys(quality, [
+      "name",
+      "needs",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     quality.name !== "Roastery deterministic quality" ||
     quality.needs !== "eligibility" ||
     !equal(quality.permissions, { contents: "read" })
@@ -275,11 +281,14 @@ function validateQuality(workflow) {
     fail("quality.yml: candidate checkout requires eligibility");
   }
   const steps = getSteps(quality);
-  const checkoutIndex = steps.findIndex(
-    (step) => isRecord(step) && step.uses?.startsWith("actions/checkout@"),
-  );
-  if (checkoutIndex < 0 || quality.needs !== "eligibility") {
-    fail("quality.yml: candidate checkout requires eligibility");
+  if (
+    !equal(steps[0], {
+      name: "Check out repository without persisted credentials",
+      uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      with: { "fetch-depth": 0, "persist-credentials": false },
+    })
+  ) {
+    fail("quality.yml: exact candidate checkout");
   }
   const installIndex = indexOfRun(steps, "npm ci --ignore-scripts");
   const auditIndex = indexOfRun(steps, "npm audit --audit-level=moderate");
@@ -296,15 +305,42 @@ function validateQuality(workflow) {
       "quality.yml: immutable install and moderate audit precede repository scripts",
     );
   }
+  for (const index of [installIndex, auditIndex, ...scriptIndices]) {
+    if (index < 0 || !hasExactKeys(steps[index], ["run"])) {
+      fail("quality.yml: required commands cannot be conditional or tolerant");
+      break;
+    }
+  }
   if (!stepRuns(steps, "npm run ci:policy")) {
     fail("quality.yml: quality job runs the policy command");
   }
   if (
     !isRecord(aggregate) ||
+    !hasExactKeys(aggregate, [
+      "name",
+      "if",
+      "needs",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     aggregate.name !== "Roastery required" ||
     aggregate.if !== "always()" ||
     !equal(aggregate.needs, ["eligibility", "quality"]) ||
-    !equal(aggregate.permissions, { contents: "read" })
+    aggregate["runs-on"] !== "ubuntu-24.04" ||
+    aggregate["timeout-minutes"] !== 15 ||
+    !equal(aggregate.permissions, { contents: "read" }) ||
+    !equal(getSteps(aggregate), [
+      {
+        name: "Require every applicable lane",
+        env: {
+          ELIGIBILITY_RESULT: "${{ needs.eligibility.result }}",
+          QUALITY_RESULT: "${{ needs.quality.result }}",
+        },
+        run: 'test "$ELIGIBILITY_RESULT" = success\ntest "$QUALITY_RESULT" = success\n',
+      },
+    ])
   ) {
     fail("quality.yml: aggregate contract");
   }
@@ -335,7 +371,7 @@ function validateSecretBoundary(workflow) {
     boundary.name !== "Secret boundary" ||
     boundary["runs-on"] !== "ubuntu-latest" ||
     boundary.if !==
-      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.user.login == 'dependabot[bot]'"
+      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)"
   ) {
     fail("secret-boundary.yml: trusted author boundary");
   }
@@ -459,10 +495,11 @@ function validateMergePolicy() {
   if (
     policy.merge_method !== "squash" ||
     policy.auto_merge !== "github-native" ||
+    policy.merge_queue !== false ||
     policy.required_approvals !== 0 ||
     !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
     !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
-    !equal(policy.required_events, ["pull_request", "merge_group"]) ||
+    !equal(policy.required_events, ["pull_request"]) ||
     policy.review_policy?.required_approvals !== 0 ||
     policy.review_policy?.code_owner_reviews_required !== false
   ) {
@@ -491,6 +528,9 @@ function validateMergePolicy() {
       "/CODEOWNERS",
       "/LICENSE",
       "/SECURITY.md",
+      "/scripts/build.mjs",
+      "/tsconfig.build.json",
+      "/tsconfig.json",
       "/contract/**",
       "/roastery/CONTENT_LICENSE.md",
       "/roastery/roastery.json",
@@ -541,10 +581,12 @@ if (
   fail("package command must run fixtures before the checker");
 }
 if (
+  packageJson.scripts?.build !== "node scripts/build.mjs" ||
   packageJson.scripts?.["dist:check"] !==
-  "npm run build && git diff --exit-code -- dist"
+    "npm run build && git diff --exit-code -- dist" ||
+  packageJson.scripts?.prepack !== "npm run build"
 ) {
-  fail("package command must verify reproducible dist");
+  fail("package build contract must verify reproducible dist");
 }
 validateDependabot();
 validateMergePolicy();

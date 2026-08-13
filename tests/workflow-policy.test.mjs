@@ -191,6 +191,24 @@ test("rejects disabling the author eligibility job", async () => {
   );
 });
 
+for (const [name, field] of [
+  ["conditional", "        if: ${{ false }}\n"],
+  ["failure-tolerant", "        continue-on-error: true\n"],
+]) {
+  test(`rejects a ${name} author eligibility step`, async () => {
+    await expectRejected(
+      (fixture) =>
+        replace(
+          fixture,
+          ".github/workflows/quality.yml",
+          "      - name: Decide author eligibility\n",
+          `      - name: Decide author eligibility\n${field}`,
+        ),
+      /author eligibility job contract/u,
+    );
+  });
+}
+
 test("checked-in author gates admit Dependabot without broadening contributors", async () => {
   const quality = await readFile(
     join(repositoryRoot, ".github/workflows/quality.yml"),
@@ -202,6 +220,10 @@ test("checked-in author gates admit Dependabot without broadening contributors",
   );
   assert.match(quality, /dependabot\[bot\]/u);
   assert.match(boundary, /dependabot\[bot\]/u);
+  assert.match(quality, /github\.actor/u);
+  assert.match(quality, /head\.repo\.full_name/u);
+  assert.match(boundary, /github\.actor/u);
+  assert.match(boundary, /head\.repo\.full_name/u);
   assert.doesNotMatch(quality, /COLLABORATOR|CONTRIBUTOR/u);
 });
 
@@ -231,16 +253,16 @@ test("rejects a weakened dependency-review threshold", async () => {
   );
 });
 
-test("rejects an inexact merge-group reference", async () => {
+test("rejects re-enabling a merge-group workflow", async () => {
   await expectRejected(
     (fixture) =>
       replace(
         fixture,
         ".github/workflows/policy.yml",
-        "${{ github.event.merge_group.base_sha }}",
-        "${{ github.event.merge_group.base_ref }}",
+        "  pull_request:\n",
+        "  pull_request:\n  merge_group:\n",
       ),
-    /exact merge-group refs/u,
+    /approved triggers/u,
   );
 });
 
@@ -274,6 +296,48 @@ test("checked-in CI proves shipped dist is reproducible", async () => {
   );
   assert.match(quality, /npm run dist:check/u);
   assert.ok(policy.protected_paths.includes("/roastery/roastery.json"));
+  assert.ok(policy.protected_paths.includes("/scripts/build.mjs"));
+  assert.ok(policy.protected_paths.includes("/tsconfig.build.json"));
+  assert.ok(policy.protected_paths.includes("/tsconfig.json"));
+  assert.equal(policy.merge_queue, false);
+});
+
+test("rejects a candidate-controlled build or publish recipe", async () => {
+  for (const [from, to] of [
+    ['"build": "node scripts/build.mjs"', '"build": "true"'],
+    ['"prepack": "npm run build"', '"prepack": "true"'],
+  ]) {
+    await expectRejected(
+      (fixture) => replace(fixture, "package.json", from, to),
+      /package build contract/u,
+    );
+  }
+});
+
+test("rejects a base-ref checkout in candidate quality", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "          fetch-depth: 0\n",
+        "          fetch-depth: 0\n          ref: ${{ github.event.pull_request.base.sha }}\n",
+      ),
+    /exact candidate checkout/u,
+  );
+});
+
+test("rejects a manufactured aggregate result", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        '          test "$ELIGIBILITY_RESULT" = success\n          test "$QUALITY_RESULT" = success\n',
+        "          true\n",
+      ),
+    /aggregate contract/u,
+  );
 });
 
 test("rejects removal of the canonical contract from sensitive paths", async () => {

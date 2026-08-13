@@ -2,7 +2,8 @@
   "repository_role": "roastery",
   "merge_method": "squash",
   "auto_merge": "github-native",
-  "required_events": ["pull_request", "merge_group"],
+  "merge_queue": false,
+  "required_events": ["pull_request"],
   "eligible_author_associations": ["OWNER", "MEMBER"],
   "eligible_bot_logins": ["dependabot[bot]"],
   "review_policy": {
@@ -37,6 +38,9 @@
     "/CODEOWNERS",
     "/LICENSE",
     "/SECURITY.md",
+    "/scripts/build.mjs",
+    "/tsconfig.build.json",
+    "/tsconfig.json",
     "/contract/**",
     "/roastery/CONTENT_LICENSE.md",
     "/roastery/roastery.json"

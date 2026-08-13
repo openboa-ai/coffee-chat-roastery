@@ -156,6 +156,8 @@ test("policy retains lean workflows and native squash authority", () => {
   assert.deepEqual(policy.eligible_bot_logins, ["dependabot[bot]"]);
   assert.equal(policy.merge_method, "squash");
   assert.equal(policy.auto_merge, "github-native");
+  assert.equal(policy.merge_queue, false);
+  assert.deepEqual(policy.required_events, ["pull_request"]);
   assert.equal(policy.required_approvals, 0);
   assert.ok(
     policy.required_checks.some(({ context }) => context === "Secret boundary"),
@@ -168,7 +170,7 @@ test("policy retains lean workflows and native squash authority", () => {
       "utf8",
     );
     assert.match(source, /pull_request:/u);
-    assert.match(source, /merge_group:/u);
+    assert.doesNotMatch(source, /merge_group:/u);
   }
   const boundary = readFileSync(
     join(root, ".github/workflows/secret-boundary.yml"),

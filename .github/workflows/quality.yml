@@ -2,7 +2,6 @@ name: Roastery quality
 
 on:
   pull_request:
-  merge_group:
 
 permissions: {}
 
@@ -16,16 +15,20 @@ jobs:
     steps:
       - name: Decide author eligibility
         env:
+          ACTOR: ${{ github.actor }}
           AUTHOR_ASSOCIATION:
             ${{ github.event.pull_request.author_association }}
+          BASE_REPOSITORY: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           case "$EVENT_NAME" in
-            merge_group) exit 0 ;;
             pull_request)
               case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+              test "$ACTOR" = "dependabot[bot]"
               test "$PR_AUTHOR" = "dependabot[bot]"
+              test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
               ;;
             *) exit 1 ;;
           esac
