@@ -17,3 +17,11 @@ tests them.
 - [ ] `npm run smoke`
 - [ ] `npm run ci:policy`
 - [ ] `npm run package:check`
+
+## Merge lifecycle
+
+- [ ] I marked the applicable sensitive-path status below.
+  - [ ] No sensitive path changed.
+  - [ ] Sensitive path changed: describe the path and review impact.
+- [ ] GitHub-native squash auto-merge is enabled only after all required checks
+      pass. Organization rules decide whether human review is required.

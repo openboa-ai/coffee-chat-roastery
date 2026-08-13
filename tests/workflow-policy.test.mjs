@@ -222,3 +222,21 @@ test("rejects weakening the package policy command", async () => {
     /package command/u,
   );
 });
+
+test("documents GitHub-native selective-review auto-merge", async () => {
+  const [agentContract, pullRequestTemplate] = await Promise.all([
+    readFile(join(repositoryRoot, "AGENTS.md"), "utf8"),
+    readFile(join(repositoryRoot, ".github/PULL_REQUEST_TEMPLATE.md"), "utf8"),
+  ]);
+
+  assert.match(agentContract, /pull request/u);
+  assert.match(agentContract, /GitHub-native squash auto-merge/u);
+  assert.match(agentContract, /organization rules.*human review/iu);
+  assert.match(agentContract, /custom write-token merge automation/u);
+  assert.doesNotMatch(
+    agentContract,
+    /Human approval is not a merge condition/u,
+  );
+  assert.match(pullRequestTemplate, /Sensitive path/u);
+  assert.match(pullRequestTemplate, /GitHub-native squash auto-merge/u);
+});
