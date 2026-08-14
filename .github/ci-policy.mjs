@@ -33,6 +33,7 @@ function isRecord(value) {
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;
+const TRUSTED_CONTROL_SHA = "f2e0db9ee5fc67c63fe789d0e80bb3061436bc6c";
 
 function packageNameFromLockPath(path) {
   const marker = "node_modules/";
@@ -290,6 +291,8 @@ function validateMergePolicy() {
       "/CODEOWNERS",
       "/LICENSE",
       "/SECURITY.md",
+      "/package.json",
+      "/package-lock.json",
       "/.npmrc",
       "/npm-shrinkwrap.json",
       "/dist/**",
@@ -320,9 +323,7 @@ const trustedWorkflowSource = readFileSync(
 const trustedControlSha = trustedWorkflowSource.match(
   /uses: openboa-ai\/\.github\/\.github\/workflows\/coffee-trusted-gate\.yml@([0-9a-f]{40})/u,
 )?.[1];
-const expectedTrustedWorkflow =
-  trustedControlSha &&
-  `name: OpenBoa Coffee trusted gate
+const expectedTrustedWorkflow = `name: OpenBoa Coffee trusted gate
 
 on:
   pull_request_target:
@@ -337,11 +338,14 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@${trustedControlSha}
+    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@${TRUSTED_CONTROL_SHA}
     with:
-      control_sha: ${trustedControlSha}
+      control_sha: ${TRUSTED_CONTROL_SHA}
 `;
-if (!trustedControlSha || trustedWorkflowSource !== expectedTrustedWorkflow) {
+if (
+  trustedControlSha !== TRUSTED_CONTROL_SHA ||
+  trustedWorkflowSource !== expectedTrustedWorkflow
+) {
   fail("trusted wrapper must remain exact");
 }
 
