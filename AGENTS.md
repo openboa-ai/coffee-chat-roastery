@@ -36,11 +36,12 @@ targets the earlier squash-merged contract commit, avoiding self-reference.
   target workflow or broaden this to contributors. Merge queue is disabled.
 - Accurately mark in the pull request whether it changes a sensitive path:
   workflow or repository policy, `AGENTS.md`, `CODEOWNERS`, licenses,
-  `SECURITY.md`, published `src/**` or `dist/**`, build and validation scripts,
-  emit configuration, contracts, or the canonical Roastery pin. The central
-  classifier sends those changes to the protected `coffee-security` Environment;
-  tests, non-governance docs, and compatible dependency maintenance remain on
-  the zero-review required-CI auto-merge path.
+  `SECURITY.md`, root package authority, published `src/**` or `dist/**`, build
+  and validation scripts, emit configuration, contracts, or the canonical
+  Roastery pin. The central classifier sends those changes to the protected
+  `coffee-security` Environment. Exact in-repository Dependabot changes limited
+  to `package.json` and `package-lock.json` remain on the zero-review
+  required-CI auto-merge path, as do tests and non-governance docs.
 - Do not create custom write-token merge automation. Enable only GitHub-native
   squash auto-merge after the required checks pass.
 - The reusable workflow in `openboa-ai/.github` is the authorization boundary.

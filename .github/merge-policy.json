@@ -33,6 +33,8 @@
     "/CODEOWNERS",
     "/LICENSE",
     "/SECURITY.md",
+    "/package.json",
+    "/package-lock.json",
     "/.npmrc",
     "/npm-shrinkwrap.json",
     "/dist/**",
