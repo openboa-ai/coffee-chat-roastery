@@ -295,6 +295,10 @@ for (const name of ["origins", "beans"]) {
   assert.equal(lstatSync(directory).isSymbolicLink(), false, name);
   assert.equal(lstatSync(directory).isDirectory(), true, name);
   assert.deepEqual(readdirSync(directory).sort(), [".gitkeep"], name);
+  const placeholder = resolve(directory, ".gitkeep");
+  assert.equal(lstatSync(placeholder).isSymbolicLink(), false, `${name}/.gitkeep`);
+  assert.equal(lstatSync(placeholder).isFile(), true, `${name}/.gitkeep`);
+  assert.equal(readFileSync(placeholder, "utf8"), "", `${name}/.gitkeep must remain empty`);
 }
 
 for (const forbidden of [
