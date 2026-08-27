@@ -31,6 +31,7 @@
     "/.gitleaks.toml",
     "/AGENTS.md",
     "/CODEOWNERS",
+    "/README.md",
     "/LICENSE",
     "/SECURITY.md",
     "/package.json",

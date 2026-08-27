@@ -5,6 +5,7 @@
 /.gitleaks.toml @openboa
 /AGENTS.md @openboa
 /CODEOWNERS @openboa
+/README.md @openboa
 /.npmrc @openboa-ai/security-maintainers
 /LICENSE @openboa
 /SECURITY.md @openboa

@@ -50,12 +50,14 @@ automatically a Bean.
 
 ## How
 
-Roast proposes a candidate from one or more Origins. The owner reviews and
-explicitly confirms its exact meaning; only then does Roastery accept it under
-`beans/`. Brew reads that confirmed record as input but does not change it.
-Taste is the effect of applying a Bean, not a second stored record.
+The intended lifecycle is that Roast proposes a candidate from one or more
+Origins, the owner reviews and explicitly confirms its exact meaning, and a
+host may persist the confirmed Bean in an owner-controlled Roastery. That
+confirmation is separate from permission to write or publish. Brew may use a
+confirmed Bean as input without changing it. Taste is the effect of applying a
+Bean, not a second stored record.
 
-## Lifecycle
+## Proposed lifecycle
 
 ~~~text
 Origin -> Roast -> candidate -> explicit confirmation -> Bean -> Brew -> Coffee
