@@ -90,6 +90,12 @@ Ground Truth, Judge results, execution traces, credentials, or indexes.
 The official repository is a data-free seed. Personal Origins and Beans belong
 to the owner-controlled Roastery instance and must not be added here.
 
+## Local security hook
+
+After cloning, run `npm run hooks:install` to configure Git to use the committed
+`.githooks/pre-commit` guard. This local hook supplements, but does not
+replace, the trusted central checks.
+
 ## Status
 
 The semantic data home is defined, but no storage schema, publication flow, or

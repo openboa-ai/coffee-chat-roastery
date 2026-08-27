@@ -145,7 +145,10 @@ assert.deepEqual(readJson("package.json"), {
   version: "0.0.0",
   private: true,
   type: "module",
-  scripts: { verify: "node .github/ci-policy.mjs" },
+  scripts: {
+    "hooks:install": "git config core.hooksPath .githooks",
+    verify: "node .github/ci-policy.mjs",
+  },
 });
 assert.deepEqual(readJson("package-lock.json"), {
   name: "@openboa-ai/coffee-chat-roastery",

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "hooks:install": "git config core.hooksPath .githooks",
     "verify": "node .github/ci-policy.mjs"
   }
 }
