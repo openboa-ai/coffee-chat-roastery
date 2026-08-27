@@ -4,7 +4,7 @@ Describe the one observable change to the Origin/confirmed-Bean data home.
 
 ## Boundary check
 
-- [ ] Only source Origins or explicitly confirmed Beans changed.
+- [ ] No Origin or Bean content was added to this public seed.
 - [ ] No Roast candidate, prompt, Coffee, Bench case, Judge result, or Eval
       evidence was added here.
 - [ ] No schema, index, embedding, crawler, or platform-specific layout was
