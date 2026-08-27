@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(process.env.CI_POLICY_ROOT ?? ".");
@@ -54,6 +54,15 @@ assert.deepEqual(readdirSync(root).sort(), [
   "package.json",
 ]);
 
+assert.deepEqual(readdirSync(resolve(root, ".github")).sort(), [
+  "PULL_REQUEST_TEMPLATE.md",
+  "ci-policy.mjs",
+  "dependabot.yml",
+  "merge-policy.json",
+  "workflows",
+]);
+assert.deepEqual(readdirSync(resolve(root, ".githooks")).sort(), ["pre-commit"]);
+
 assert.deepEqual(readJson(".github/merge-policy.json"), {
   repository_role: "roastery",
   merge_method: "squash",
@@ -101,6 +110,8 @@ assert.deepEqual(readJson(".github/merge-policy.json"), {
 for (const name of ["origins", "beans"]) {
   const directory = resolve(root, name);
   assert.equal(existsSync(directory), true, name);
+  assert.equal(lstatSync(directory).isSymbolicLink(), false, name);
+  assert.equal(lstatSync(directory).isDirectory(), true, name);
   assert.deepEqual(readdirSync(directory).sort(), [".gitkeep"], name);
 }
 
