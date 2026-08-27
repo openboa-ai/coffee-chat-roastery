@@ -33,7 +33,7 @@ function isRecord(value) {
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;
-const TRUSTED_CONTROL_SHA = "f2e0db9ee5fc67c63fe789d0e80bb3061436bc6c";
+const TRUSTED_CONTROL_SHA = "d6d8b73b4c1da5f57daa46d32a9f253cd0ef6a4a";
 
 function packageNameFromLockPath(path) {
   const marker = "node_modules/";
