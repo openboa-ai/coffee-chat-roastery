@@ -62,6 +62,104 @@ assert.deepEqual(readdirSync(resolve(root, ".github")).sort(), [
   "workflows",
 ]);
 assert.deepEqual(readdirSync(resolve(root, ".githooks")).sort(), ["pre-commit"]);
+assert.deepEqual(readJson("package.json"), {
+  name: "@openboa-ai/coffee-chat-roastery",
+  private: true,
+  type: "module",
+  scripts: { verify: "node .github/ci-policy.mjs" },
+});
+assert.deepEqual(readJson("package-lock.json"), {
+  name: "@openboa-ai/coffee-chat-roastery",
+  version: "0.0.0",
+  lockfileVersion: 3,
+  requires: true,
+  packages: {
+    "": {
+      name: "@openboa-ai/coffee-chat-roastery",
+      version: "0.0.0",
+    },
+  },
+});
+assert.equal(
+  readFileSync(resolve(root, ".github/dependabot.yml"), "utf8"),
+  `version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      production:
+        applies-to: version-updates
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      versions:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+`,
+  "Dependabot policy must remain bounded to approved update lanes",
+);
+assert.equal(
+  readFileSync(resolve(root, "CODEOWNERS"), "utf8"),
+  `# Ownership routing; repository rules add team review only for sensitive paths.
+/.github/** @openboa
+/.githooks/** @openboa
+/.gitleaksignore @openboa
+/.gitleaks.toml @openboa
+/AGENTS.md @openboa
+/CODEOWNERS @openboa
+/.npmrc @openboa-ai/security-maintainers
+/LICENSE @openboa
+/SECURITY.md @openboa
+/package.json @openboa
+/package-lock.json @openboa
+/npm-shrinkwrap.json @openboa-ai/security-maintainers
+/origins/** @openboa
+/beans/** @openboa
+`,
+  "CODEOWNERS must preserve the roastery ownership routes",
+);
+assert.match(
+  readFileSync(resolve(root, "SECURITY.md"), "utf8"),
+  /security@openboa\.ai/u,
+  "SECURITY.md must provide a private reporting channel",
+);
 
 assert.deepEqual(readJson(".github/merge-policy.json"), {
   repository_role: "roastery",

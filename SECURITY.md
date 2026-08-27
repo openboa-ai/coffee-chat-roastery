@@ -10,5 +10,5 @@ persist, or use credentials. A Bean is authoritative only after explicit
 user confirmation in an owner-controlled Roastery instance.
 
 Do not include private source material in issues, pull requests, logs, or
-public artifacts. Report security issues privately to the repository
-maintainers.
+public artifacts. Report security issues privately to
+`security@openboa.ai`.
