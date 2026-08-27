@@ -18,7 +18,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const checker = join(repositoryRoot, ".github/ci-policy.mjs");
-const finalTrustedControlSha = "d6d8b73b4c1da5f57daa46d32a9f253cd0ef6a4a";
+const finalTrustedControlSha = "f33da6bbcdfebd0693ff7673d750f369629e000e";
 const staleTrustedControlSha = "a4dda848a2dd7b88443e582554de47c32aec8d46";
 
 async function withFixture(mutate, check) {
