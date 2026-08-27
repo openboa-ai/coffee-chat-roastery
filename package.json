@@ -1,5 +1,6 @@
 {
   "name": "@openboa-ai/coffee-chat-roastery",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {

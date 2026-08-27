@@ -8,9 +8,7 @@ const readJson = (path) => JSON.parse(readFileSync(resolve(root, path), "utf8"))
 assert.equal(existsSync(resolve(root, ".npmrc")), false);
 assert.equal(existsSync(resolve(root, "npm-shrinkwrap.json")), false);
 assert.deepEqual(
-  readdirSync(resolve(root, ".github/workflows"))
-    .filter((name) => /\.ya?ml$/u.test(name))
-    .sort(),
+  readdirSync(resolve(root, ".github/workflows")).sort(),
   ["trusted.yml"],
 );
 assert.equal(
@@ -64,6 +62,7 @@ assert.deepEqual(readdirSync(resolve(root, ".github")).sort(), [
 assert.deepEqual(readdirSync(resolve(root, ".githooks")).sort(), ["pre-commit"]);
 assert.deepEqual(readJson("package.json"), {
   name: "@openboa-ai/coffee-chat-roastery",
+  version: "0.0.0",
   private: true,
   type: "module",
   scripts: { verify: "node .github/ci-policy.mjs" },
