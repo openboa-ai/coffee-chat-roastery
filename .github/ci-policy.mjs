@@ -1,329 +1,41 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 
-import { loadPolicyParser } from "./policy-bootstrap.mjs";
-
-const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const root = resolve(process.env.ROASTERY_CI_POLICY_ROOT ?? controlRoot);
-const { parseDocument } = loadPolicyParser(controlRoot);
-const workflowRoot = resolve(root, ".github/workflows");
-const failures = [];
-if (existsSync(resolve(root, ".npmrc"))) {
-  failures.push("root .npmrc must be absent");
-}
-if (existsSync(resolve(root, ".github/policy-parser/.npmrc"))) {
-  failures.push("isolated policy parser .npmrc must be absent before install");
-}
-if (existsSync(resolve(root, "npm-shrinkwrap.json"))) {
-  failures.push("root npm-shrinkwrap.json must be absent");
-}
-if (existsSync(resolve(root, ".github/policy-parser/npm-shrinkwrap.json"))) {
-  failures.push(
-    "isolated policy parser npm-shrinkwrap.json must be absent before loading",
-  );
-}
-function fail(message) {
-  failures.push(message);
-}
-
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
-const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;
+const root = resolve(process.env.CI_POLICY_ROOT ?? ".");
 const TRUSTED_CONTROL_SHA = "f33da6bbcdfebd0693ff7673d750f369629e000e";
-
-function packageNameFromLockPath(path) {
-  const marker = "node_modules/";
-  const index = path.lastIndexOf(marker);
-  return index === -1 ? null : path.slice(index + marker.length);
+const readJson = (path) => JSON.parse(readFileSync(resolve(root, path), "utf8"));
+const trackedFiles = execFileSync("git", ["-C", root, "ls-files", "-z"], {
+  encoding: "utf8",
+})
+  .split("\0")
+  .filter(Boolean);
+function trackedEntries(directory = ".") {
+  const prefix = directory === "." ? "" : `${directory.replace(/\/$/u, "")}/`;
+  const entries = new Set();
+  for (const file of trackedFiles) {
+    if (!file.startsWith(prefix)) continue;
+    const remainder = file.slice(prefix.length);
+    if (!remainder) continue;
+    entries.add(remainder.split("/")[0]);
+  }
+  return [...entries].sort();
 }
-
-function expectedRegistryUrl(name, version) {
-  const tarballName = name.slice(name.lastIndexOf("/") + 1);
-  return `https://registry.npmjs.org/${name}/-/${tarballName}-${version}.tgz`;
+function checkoutEntries(directory = ".") {
+  const entries = trackedEntries(directory);
+  if (directory === ".") entries.push(".git");
+  return entries.sort();
 }
-
-function validatePackageLock(packageJson, allowedDevDependencies) {
-  let lock;
-  try {
-    lock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
-  } catch (error) {
-    fail(
-      `package lock must parse: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return;
-  }
-  const rootPackage = lock?.packages?.[""];
-  const devDependencies = packageJson.devDependencies ?? {};
-  if (
-    lock.lockfileVersion !== 3 ||
-    lock.requires !== true ||
-    lock.name !== packageJson.name ||
-    lock.version !== packageJson.version ||
-    !isRecord(lock.packages) ||
-    !isRecord(rootPackage) ||
-    rootPackage.name !== packageJson.name ||
-    rootPackage.version !== packageJson.version ||
-    !equal(rootPackage.devDependencies ?? {}, devDependencies) ||
-    !equal(rootPackage.dependencies ?? {}, packageJson.dependencies ?? {}) ||
-    !equal(
-      Object.keys(devDependencies).sort(),
-      [...allowedDevDependencies].sort(),
-    ) ||
-    !Object.values(devDependencies).every(
-      (version) => typeof version === "string" && EXACT_VERSION.test(version),
-    )
-  ) {
-    fail("package lock must match the approved dependency contract");
-    return;
-  }
-  for (const [path, entry] of Object.entries(lock.packages)) {
-    if (path === "") continue;
-    const name = packageNameFromLockPath(path);
-    if (
-      name === null ||
-      !isRecord(entry) ||
-      typeof entry.version !== "string" ||
-      !EXACT_VERSION.test(entry.version) ||
-      entry.resolved !== expectedRegistryUrl(name, entry.version) ||
-      typeof entry.integrity !== "string" ||
-      !SHA512_INTEGRITY.test(entry.integrity) ||
-      entry.link === true ||
-      entry.hasInstallScript === true
-    ) {
-      fail("package lock must preserve registry identity and integrity");
-      return;
-    }
-  }
-}
-
-function hasExactKeys(value, keys) {
-  return (
-    isRecord(value) &&
-    JSON.stringify(Object.keys(value).sort()) ===
-      JSON.stringify([...keys].sort())
-  );
-}
-
-function equal(actual, expected) {
-  return JSON.stringify(actual) === JSON.stringify(expected);
-}
-
-const YAML_MAX_BYTES = 256 * 1024;
-const YAML_MAX_ALIASES = 100;
-const YAML_MAX_DEPTH = 32;
-const YAML_MAX_NODES = 10_000;
-const YAML_MAX_STRING_BYTES = 256 * 1024;
-
-function assertYamlResourceBudget(value, label) {
-  const pending = [{ value, depth: 0 }];
-  const seen = new WeakSet();
-  let nodes = 0;
-  let stringBytes = 0;
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current) break;
-    nodes += 1;
-    if (nodes > YAML_MAX_NODES) {
-      fail(`${label}: document node limit exceeded`);
-      return false;
-    }
-    if (current.depth > YAML_MAX_DEPTH) {
-      fail(`${label}: document depth limit exceeded`);
-      return false;
-    }
-    if (typeof current.value === "string") {
-      stringBytes += Buffer.byteLength(current.value, "utf8");
-      if (stringBytes > YAML_MAX_STRING_BYTES) {
-        fail(`${label}: document string limit exceeded`);
-        return false;
-      }
-      continue;
-    }
-    if (!current.value || typeof current.value !== "object") continue;
-    if (seen.has(current.value)) continue;
-    seen.add(current.value);
-    const children = Array.isArray(current.value)
-      ? current.value
-      : Object.entries(current.value).flat();
-    for (const child of children) {
-      pending.push({ value: child, depth: current.depth + 1 });
-    }
-  }
-  return true;
-}
-
-function parseBoundedYaml(relativePath, label) {
-  const source = readFileSync(resolve(root, relativePath), "utf8");
-  if (Buffer.byteLength(source, "utf8") > YAML_MAX_BYTES) {
-    fail(`${label}: document byte limit exceeded`);
-    return undefined;
-  }
-  const document = parseDocument(source, { uniqueKeys: true });
-  if (document.errors.length > 0) {
-    fail(`${label}: must parse uniquely`);
-    return undefined;
-  }
-  let value;
-  try {
-    value = document.toJS({ maxAliasCount: YAML_MAX_ALIASES });
-  } catch {
-    fail(`${label}: alias resource limit exceeded`);
-    return undefined;
-  }
-  return assertYamlResourceBudget(value, label) ? value : undefined;
-}
-
-function validateDependabot() {
-  const config = parseBoundedYaml(".github/dependabot.yml", "dependabot.yml");
-  if (config === undefined) return;
-  const updates = config?.updates;
-  if (!Array.isArray(updates) || updates.length !== 2) {
-    fail("dependabot.yml: exact update lanes");
-    return;
-  }
-  const npm = updates.find((update) => update?.["package-ecosystem"] === "npm");
-  const actions = updates.find(
-    (update) => update?.["package-ecosystem"] === "github-actions",
-  );
-  const minorPatch = ["minor", "patch"];
-  const compatibleVersionUpdates = [
-    {
-      "dependency-name": "*",
-      "update-types": [
-        "version-update:semver-minor",
-        "version-update:semver-patch",
-      ],
-    },
-  ];
-  if (
-    !isRecord(npm) ||
-    !equal(npm.groups?.production, {
-      "applies-to": "version-updates",
-      "dependency-type": "production",
-      "update-types": minorPatch,
-    }) ||
-    !equal(npm.groups?.development, {
-      "applies-to": "version-updates",
-      "dependency-type": "development",
-      "update-types": minorPatch,
-    }) ||
-    !equal(npm.groups?.security, {
-      "applies-to": "security-updates",
-      patterns: ["*"],
-    }) ||
-    !equal(npm.allow, compatibleVersionUpdates) ||
-    Object.hasOwn(npm, "ignore")
-  ) {
-    fail(
-      "dependabot.yml: npm production, development, security, and major policy",
-    );
-  }
-  if (
-    !isRecord(actions) ||
-    !equal(actions.groups?.versions, {
-      "applies-to": "version-updates",
-      "update-types": minorPatch,
-      patterns: ["*"],
-    }) ||
-    !equal(actions.groups?.security, {
-      "applies-to": "security-updates",
-      patterns: ["*"],
-    }) ||
-    !equal(actions.allow, compatibleVersionUpdates) ||
-    Object.hasOwn(actions, "ignore")
-  ) {
-    fail("dependabot.yml: GitHub Actions version, security, and major policy");
-  }
-}
-
-function validateMergePolicy() {
-  const policy = JSON.parse(
-    readFileSync(resolve(root, ".github/merge-policy.json"), "utf8"),
-  );
-  if (
-    policy.merge_method !== "squash" ||
-    policy.auto_merge !== "github-native" ||
-    policy.merge_queue !== false ||
-    policy.required_approvals !== 0 ||
-    !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
-    !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
-    !equal(policy.required_events, ["pull_request"]) ||
-    policy.review_policy?.required_approvals !== 0 ||
-    policy.review_policy?.code_owner_reviews_required !== false ||
-    policy.review_policy?.sensitive_paths_use_protected_environment !== true
-  ) {
-    fail("merge policy is not zero-approval GitHub-native squash");
-  }
-  if (
-    !equal(policy.required_checks, [
-      {
-        context:
-          "OpenBoa Coffee trusted required / OpenBoa Coffee trusted required",
-        integration_id: 15368,
-      },
-    ])
-  ) {
-    fail("merge policy must retain exact required checks");
-  }
-  if (
-    !equal(policy.sensitive_review, {
-      enforcement: "github_environment",
-      environment: "coffee-security",
-      required_approvals: 1,
-      prevent_self_review: false,
-    })
-  ) {
-    fail("merge policy must retain the protected Environment review");
-  }
-  if (
-    !equal(policy.protected_paths, [
-      "/.github/**",
-      "/.githooks/**",
-      "/.gitleaksignore",
-      "/.gitleaks.toml",
-      "/AGENTS.md",
-      "/CODEOWNERS",
-      "/LICENSE",
-      "/SECURITY.md",
-      "/package.json",
-      "/package-lock.json",
-      "/.npmrc",
-      "/npm-shrinkwrap.json",
-      "/dist/**",
-      "/scripts/**",
-      "/src/**",
-      "/tsconfig.build.json",
-      "/tsconfig.json",
-      "/contract/**",
-      "/roastery/CONTENT_LICENSE.md",
-      "/roastery/roastery.json",
-    ])
-  ) {
-    fail("merge policy must retain exact protected paths");
-  }
-}
-
-const discovered = readdirSync(workflowRoot)
-  .filter((name) => /\.ya?ml$/u.test(name))
-  .sort();
-if (!equal(discovered, ["trusted.yml"])) {
-  fail("target repository must expose only the trusted wrapper");
-}
-
-const trustedWorkflowSource = readFileSync(
-  resolve(workflowRoot, "trusted.yml"),
-  "utf8",
+assert.equal(existsSync(resolve(root, ".npmrc")), false);
+assert.equal(existsSync(resolve(root, "npm-shrinkwrap.json")), false);
+assert.deepEqual(
+  readdirSync(resolve(root, ".github/workflows")).sort(),
+  ["trusted.yml"],
 );
-const trustedControlSha = trustedWorkflowSource.match(
-  /uses: openboa-ai\/\.github\/\.github\/workflows\/coffee-trusted-gate\.yml@([0-9a-f]{40})/u,
-)?.[1];
-const expectedTrustedWorkflow = `name: OpenBoa Coffee trusted gate
+assert.equal(
+  readFileSync(resolve(root, ".github/workflows/trusted.yml"), "utf8"),
+  `name: OpenBoa Coffee trusted gate
 
 on:
   pull_request_target:
@@ -341,79 +53,263 @@ jobs:
     uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@${TRUSTED_CONTROL_SHA}
     with:
       control_sha: ${TRUSTED_CONTROL_SHA}
-`;
-if (
-  trustedControlSha !== TRUSTED_CONTROL_SHA ||
-  trustedWorkflowSource !== expectedTrustedWorkflow
-) {
-  fail("trusted wrapper must remain exact");
-}
-
-const packageJson = JSON.parse(
-  readFileSync(resolve(root, "package.json"), "utf8"),
+`,
+  "trusted wrapper must remain exact",
 );
-const expectedPackageScripts = {
-  build: "node scripts/build.mjs",
-  "ci:policy":
-    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
-  "dist:check": "npm run build && git diff --exit-code -- dist",
-  "format:check": "prettier --check .",
-  "hooks:install": "git config core.hooksPath .githooks",
-  "package:check": "node scripts/check-package.mjs",
-  "security:scan": "scripts/security-scan.sh",
-  "repository:check": "node scripts/check-repository-state.mjs --root .",
-  smoke: "node --test tests/*.test.mjs",
-  test: "npm run smoke",
-  typecheck: "tsc --noEmit",
-  prepack: "npm run build",
-};
-if (
-  packageJson.scripts?.["ci:policy"] !==
-  "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
-) {
-  fail("package command must run fixtures before the checker");
-}
-if (
-  !hasExactKeys(packageJson, [
-    "name",
-    "version",
-    "private",
-    "type",
-    "repository",
-    "files",
-    "types",
-    "exports",
-    "bin",
-    "engines",
-    "scripts",
-    "devDependencies",
-  ]) ||
-  packageJson.name !== "@openboa-ai/coffee-chat-roastery" ||
-  packageJson.version !== "2026.8.10" ||
-  packageJson.private !== true ||
-  packageJson.type !== "module" ||
-  packageJson.repository !==
-    "https://github.com/openboa-ai/coffee-chat-roastery" ||
-  !equal(packageJson.files, ["contract/", "dist/", "LICENSE", "README.md"]) ||
-  packageJson.types !== "./dist/index.d.ts" ||
-  !equal(packageJson.exports, {
-    ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
-  }) ||
-  !equal(packageJson.bin, { roastery: "dist/cli.js" }) ||
-  !equal(packageJson.engines, { node: ">=24" }) ||
-  !equal(packageJson.scripts, expectedPackageScripts)
-) {
-  fail(
-    "package execution and publication contract must preserve package build contract",
-  );
-}
-validatePackageLock(packageJson, ["@types/node", "prettier", "typescript"]);
-validateDependabot();
-validateMergePolicy();
+assert.deepEqual(checkoutEntries(), [
+  ".editorconfig",
+  ".git",
+  ".gitattributes",
+  ".githooks",
+  ".github",
+  ".gitignore",
+  "AGENTS.md",
+  "CODEOWNERS",
+  "LICENSE",
+  "README.md",
+  "SECURITY.md",
+  "beans",
+  "origins",
+  "package-lock.json",
+  "package.json",
+]);
 
-if (failures.length > 0) {
-  process.stderr.write(`${failures.join("\n")}\n`);
-  process.exitCode = 1;
-} else {
-  process.stdout.write("CI policy passed\n");
+assert.deepEqual(readdirSync(resolve(root, ".github")).sort(), [
+  "PULL_REQUEST_TEMPLATE.md",
+  "ci-policy.mjs",
+  "dependabot.yml",
+  "merge-policy.json",
+  "workflows",
+]);
+assert.deepEqual(readdirSync(resolve(root, ".githooks")).sort(), ["pre-commit"]);
+const expectedHook = [
+  "#!/bin/sh",
+  "set -eu",
+  "",
+  "scanner=${GITLEAKS_BIN:-gitleaks}",
+  'if ! command -v "$scanner" >/dev/null 2>&1; then',
+  "  printf '%s\\n' 'Gitleaks is required; install Gitleaks before committing.' >&2",
+  "  exit 1",
+  "fi",
+  "",
+  "if [ -e .gitleaks.toml ] || [ -e .gitleaksignore ]; then",
+  "  printf '%s\\n' 'Repository-local Gitleaks controls are not permitted.' >&2",
+  "  exit 1",
+  "fi",
+  "unset GITLEAKS_CONFIG GITLEAKS_CONFIG_TOML",
+  '"$scanner" git --pre-commit --staged --gitleaks-ignore-path /dev/null \\',
+  "  --ignore-gitleaks-allow --redact --no-banner .",
+  'staged_dir="$(mktemp -d)"',
+  `trap 'rm -rf "$staged_dir"' EXIT HUP INT TERM`,
+  'git checkout-index --all --prefix="$staged_dir/"',
+  '"$scanner" dir --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow \\',
+  '  --redact --no-banner "$staged_dir"',
+  "",
+].join("\n");
+assert.equal(readFileSync(resolve(root, ".githooks/pre-commit"), "utf8"), expectedHook);
+assert.notEqual(statSync(resolve(root, ".githooks/pre-commit")).mode & 0o111, 0);
+assert.equal(
+  readFileSync(resolve(root, ".gitignore"), "utf8"),
+  `node_modules/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+credentials.json
+secrets.json
+*.private.pem
+private-key.pem
+*.private.key
+private.key
+private-key.key
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+tls.key
+server.key
+server-key.pem
+*-private-key.pem
+*-private-key.key
+privkey*.pem
+*.p12
+*.pfx
+*.jks
+`,
+  ".gitignore must preserve the credential and local-artifact ignore contract",
+);
+assert.deepEqual(readJson("package.json"), {
+  name: "@openboa-ai/coffee-chat-roastery",
+  version: "0.0.0",
+  private: true,
+  type: "module",
+  scripts: {
+    "hooks:install": "git config core.hooksPath .githooks",
+    verify: "node .github/ci-policy.mjs",
+  },
+});
+assert.deepEqual(readJson("package-lock.json"), {
+  name: "@openboa-ai/coffee-chat-roastery",
+  version: "0.0.0",
+  lockfileVersion: 3,
+  requires: true,
+  packages: {
+    "": {
+      name: "@openboa-ai/coffee-chat-roastery",
+      version: "0.0.0",
+    },
+  },
+});
+assert.equal(
+  readFileSync(resolve(root, ".github/dependabot.yml"), "utf8"),
+  `version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      production:
+        applies-to: version-updates
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      versions:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+`,
+  "Dependabot policy must remain bounded to approved update lanes",
+);
+assert.equal(
+  readFileSync(resolve(root, "CODEOWNERS"), "utf8"),
+  `# Ownership routing; repository rules add team review only for sensitive paths.
+/.github/** @openboa
+/.githooks/** @openboa
+/.gitleaksignore @openboa
+/.gitleaks.toml @openboa
+/AGENTS.md @openboa
+/CODEOWNERS @openboa
+/README.md @openboa
+/.npmrc @openboa-ai/security-maintainers
+/LICENSE @openboa
+/SECURITY.md @openboa
+/package.json @openboa
+/package-lock.json @openboa
+/npm-shrinkwrap.json @openboa-ai/security-maintainers
+/origins/** @openboa
+/beans/** @openboa
+`,
+  "CODEOWNERS must preserve the roastery ownership routes",
+);
+assert.match(
+  readFileSync(resolve(root, "SECURITY.md"), "utf8"),
+  /security@openboa\.ai/u,
+  "SECURITY.md must provide a private reporting channel",
+);
+
+assert.deepEqual(readJson(".github/merge-policy.json"), {
+  repository_role: "roastery",
+  merge_method: "squash",
+  auto_merge: "github-native",
+  merge_queue: false,
+  required_events: ["pull_request"],
+  eligible_author_associations: ["OWNER", "MEMBER"],
+  eligible_bot_logins: ["dependabot[bot]"],
+  review_policy: {
+    required_approvals: 0,
+    code_owner_reviews_required: false,
+    sensitive_paths_use_protected_environment: true,
+  },
+  required_approvals: 0,
+  required_checks: [
+    {
+      context: "OpenBoa Coffee trusted required / OpenBoa Coffee trusted required",
+      integration_id: 15368,
+    },
+  ],
+  sensitive_review: {
+    enforcement: "github_environment",
+    environment: "coffee-security",
+    required_approvals: 1,
+    prevent_self_review: false,
+  },
+  protected_paths: [
+    "/.github/**",
+    "/.githooks/**",
+    "/.gitleaksignore",
+    "/.gitleaks.toml",
+    "/AGENTS.md",
+    "/CODEOWNERS",
+    "/README.md",
+    "/LICENSE",
+    "/SECURITY.md",
+    "/package.json",
+    "/package-lock.json",
+    "/.npmrc",
+    "/npm-shrinkwrap.json",
+    "/origins/**",
+    "/beans/**",
+  ],
+});
+
+for (const name of ["origins", "beans"]) {
+  const directory = resolve(root, name);
+  assert.equal(existsSync(directory), true, name);
+  assert.equal(lstatSync(directory).isSymbolicLink(), false, name);
+  assert.equal(lstatSync(directory).isDirectory(), true, name);
+  assert.deepEqual(readdirSync(directory).sort(), [".gitkeep"], name);
+  const placeholder = resolve(directory, ".gitkeep");
+  assert.equal(lstatSync(placeholder).isSymbolicLink(), false, `${name}/.gitkeep`);
+  assert.equal(lstatSync(placeholder).isFile(), true, `${name}/.gitkeep`);
+  assert.equal(readFileSync(placeholder, "utf8"), "", `${name}/.gitkeep must remain empty`);
 }
+
+for (const forbidden of [
+  "contract",
+  "dist",
+  "roastery",
+  "src",
+  "tests",
+  "scripts",
+]) {
+  assert.equal(existsSync(resolve(root, forbidden)), false, forbidden);
+}
+
+console.log("Coffee Chat Roastery structure and policy passed.");

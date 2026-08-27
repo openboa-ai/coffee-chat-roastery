@@ -1,66 +1,108 @@
 # Coffee Chat Roastery
 
-Coffee Chat Roastery is the public, forkable, Bean-free authority for the
-Standard Roastery contract. This repository owns the closed schemas, fixed CC BY
-4.0 Bean-content declaration, canonical validation and index projection, and the
-publication boundary consumed by the Coffee Chat Plugin. It also provides the
-empty public seed that users fork before initializing their own Roastery.
+> Data home for source Origins and explicitly confirmed perspective Beans used
+> by Coffee Chat.
 
-The official repository contains no personal Beans or owner attribution. Its
-canonical fork seed is:
+## Essence
 
-```text
-roastery/
-├── roastery.json
-└── index.json
-```
+Source material and a person's confirmed perspective are different kinds of
+truth. Roastery keeps them separate so a Product Skill cannot silently turn an
+AI interpretation into the person's view.
 
-After the Plugin's accepted Init flow, a personal fork additionally contains
-`roastery/CONTENT_LICENSE.md`, rendered only from validated owner attribution
-after explicit acceptance. `roastery/roastery.json` is the sole downstream
-contract pin and identifies the earlier immutable contract commit and digest.
+## Role
 
-## Commands
+Roastery is Coffee Chat's data home. It owns Origins and explicitly confirmed
+Beans; the Product owns Skills, Bench owns measurement criteria, and Eval owns
+execution evidence.
 
-```sh
-roastery validate --root <repository> --contract-commit <sha> --contract-digest <sha256> --format json
-roastery project-index --root <repository> [--check]
-roastery contract-digest --root <repository> --format json
-npm run repository:check
-```
+## Goal
 
-All commands are read-only. `validate` requires the trusted contract commit and
-digest instead of accepting a repository's self-declared tuple. `project-index`
-emits canonical bytes for a trusted caller to place in a reviewed change;
-`--check` compares them with the current index. Every command returns structured
-JSON and fails closed on invalid or unsafe state.
+Keep the source that grounds a perspective and the exact perspective the owner
+approved available for later Brew use, without prematurely deciding a storage
+schema or publication workflow.
 
-`repository:check` binds that validation to the executing GitHub repository.
-GitHub Actions supplies `GITHUB_REPOSITORY`; isolated callers may pass
-`--expected-repository` to the underlying script (or append it after `--` when
-using the npm command). The official repository must remain the Bean-free seed,
-while an owner fork must carry its own `owner/coffee-chat` identity and
-canonical content declaration.
+## Why
 
-The package API exports the same canonical content-license renderer/parser,
-contract digest, validator, and index projector used by the CLI. The bundle
-digest algorithm is documented in [contract/README.md](contract/README.md).
+People already express what they value and how they judge events, work, and
+choices in public posts, documents, conversations, and other records. Those
+records are useful source material, but an AI interpretation is not
+automatically the person's view. Roastery keeps the source and the confirmed
+perspective separate so Product Skills can evolve without silently changing
+what a user approved.
 
-For local publication work, install Gitleaks and enable the repository-managed
-hook with `npm run hooks:install`. Run `npm run security:scan` for a complete
-history scan. Required CI performs the same history scan independently.
+## What
 
-## Rights boundary
+### Origin
 
-Official code, schemas, contracts, policy, tests, and tooling use the root
-[MIT License](LICENSE), Copyright (c) 2026 Openboa AI.
+An Origin is source material: a public post, document, transcript, URL, event,
+conversation, decision, or user-provided context. It may contain facts and
+opinions. It is not a confirmed Coffee Chat perspective.
 
-Personal `roastery/beans/**` content uses the fixed
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) declaration created
-with owner-provided attribution. Origin URLs and the resources they identify
-remain outside that Bean-content license. The official Bean-free repository does
-not install `roastery/CONTENT_LICENSE.md`.
+### Bean
 
-See [SECURITY.md](SECURITY.md), the
-[Publication Contract](contract/publication.md), and the
-[quality map](docs/quality-map.md) for the enforced boundaries.
+A Bean is a perspective record refined from one or more Origins. It preserves
+the factual context needed to understand the perspective, including priorities,
+trade-offs, judgment boundaries, and uncertainty. It becomes authoritative only
+after the user reviews and explicitly confirms its exact meaning.
+
+An unreviewed AI candidate is not a Bean. Coffee produced by Brew is not
+automatically a Bean.
+
+## How
+
+The intended lifecycle is that Roast proposes a candidate from one or more
+Origins, the owner reviews and explicitly confirms its exact meaning, and a
+host may persist the confirmed Bean in an owner-controlled Roastery. That
+confirmation is separate from permission to write or publish. Brew may use a
+confirmed Bean as input without changing it. Taste is the effect of applying a
+Bean, not a second stored record.
+
+## Proposed lifecycle
+
+~~~text
+Origin -> Roast -> candidate -> explicit confirmation -> Bean -> Brew -> Coffee
+~~~
+
+Roastery stores the source and confirmed result. Roast, Brew, Product behavior,
+benchmark criteria, and evaluation evidence belong to sibling repositories.
+
+## Repository layout
+
+~~~text
+coffee-chat-roastery/
+├── README.md
+├── origins/
+│   └── .gitkeep
+└── beans/
+    └── .gitkeep
+~~~
+
+The directories are semantic boundaries, not a schema or filename contract.
+Storage format, provenance fields, indexes, access control, and publication
+policy remain open until product and evaluation evidence require them.
+
+## Ownership boundary
+
+This repository does not contain the Coffee Chat Plugin, Roast or Brew
+instructions, unconfirmed candidates, generated Coffee, benchmark cases,
+Ground Truth, Judge results, execution traces, credentials, or indexes.
+
+The official repository is a data-free seed. Personal Origins and Beans belong
+to the owner-controlled Roastery instance and must not be added here.
+
+## Local security hook
+
+After cloning, run `npm run hooks:install` to configure Git to use the committed
+`.githooks/pre-commit` guard. This local hook supplements, but does not
+replace, the trusted central checks.
+
+## Status
+
+The semantic data home is defined, but no storage schema, publication flow, or
+Product behavior is implemented or measured in this repository.
+
+## License
+
+Repository code and documentation are MIT licensed, Copyright © 2026 Openboa
+AI. Origin and Bean content rights are determined by the owner and the policy
+of the applicable Roastery instance.
