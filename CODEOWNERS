@@ -11,12 +11,5 @@
 /package.json @openboa
 /package-lock.json @openboa
 /npm-shrinkwrap.json @openboa-ai/security-maintainers
-/tsconfig.json @openboa
-/tsconfig.build.json @openboa
-/scripts/** @openboa
-/contract/** @openboa
-/roastery/CONTENT_LICENSE.md @openboa
-/roastery/roastery.json @openboa
-/src/cli.ts @openboa
-/src/index.ts @openboa
-/tests/** @openboa
+/origins/** @openboa
+/beans/** @openboa

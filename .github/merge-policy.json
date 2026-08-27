@@ -37,13 +37,7 @@
     "/package-lock.json",
     "/.npmrc",
     "/npm-shrinkwrap.json",
-    "/dist/**",
-    "/scripts/**",
-    "/src/**",
-    "/tsconfig.build.json",
-    "/tsconfig.json",
-    "/contract/**",
-    "/roastery/CONTENT_LICENSE.md",
-    "/roastery/roastery.json"
+    "/origins/**",
+    "/beans/**"
   ]
 }

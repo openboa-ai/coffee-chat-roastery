@@ -1,45 +1,8 @@
 {
   "name": "@openboa-ai/coffee-chat-roastery",
-  "version": "2026.8.10",
   "private": true,
   "type": "module",
-  "repository": "https://github.com/openboa-ai/coffee-chat-roastery",
-  "files": [
-    "contract/",
-    "dist/",
-    "LICENSE",
-    "README.md"
-  ],
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "bin": {
-    "roastery": "dist/cli.js"
-  },
-  "engines": {
-    "node": ">=24"
-  },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "ci:policy": "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
-    "dist:check": "npm run build && git diff --exit-code -- dist",
-    "format:check": "prettier --check .",
-    "hooks:install": "git config core.hooksPath .githooks",
-    "package:check": "node scripts/check-package.mjs",
-    "security:scan": "scripts/security-scan.sh",
-    "repository:check": "node scripts/check-repository-state.mjs --root .",
-    "smoke": "node --test tests/*.test.mjs",
-    "test": "npm run smoke",
-    "typecheck": "tsc --noEmit",
-    "prepack": "npm run build"
-  },
-  "devDependencies": {
-    "@types/node": "24.13.3",
-    "prettier": "3.9.6",
-    "typescript": "7.0.2"
+    "verify": "node .github/ci-policy.mjs"
   }
 }
